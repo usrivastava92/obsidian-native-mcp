@@ -1,0 +1,24 @@
+{
+  "name": "native-mcp",
+  "version": "0.2.0",
+  "description": "Zero-dependency MCP server for Obsidian vaults. Direct filesystem access — no Obsidian process or REST API plugin needed.",
+  "type": "module",
+  "module": "src/index.ts",
+  "bin": {
+    "native-mcp": "./dist/native-mcp"
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --compile --minify --sourcemap --target=bun-darwin-arm64 --outfile dist/native-mcp",
+    "build:linux": "bun build ./src/index.ts --compile --minify --sourcemap --target=bun-linux-x64-baseline --outfile dist/native-mcp-linux",
+    "build:mac-arm64": "bun build ./src/index.ts --compile --minify --sourcemap --target=bun-darwin-arm64 --outfile dist/native-mcp-macos-arm64",
+    "build:mac-x64": "bun build ./src/index.ts --compile --minify --sourcemap --target=bun-darwin-x64 --outfile dist/native-mcp-macos-x64",
+    "build:windows": "bun build ./src/index.ts --compile --minify --sourcemap --target=bun-windows-x64-baseline --outfile dist/native-mcp-windows.exe",
+    "dev": "bun --watch src/index.ts",
+    "check": "tsc --noEmit",
+    "start": "bun src/index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
+  }
+}
