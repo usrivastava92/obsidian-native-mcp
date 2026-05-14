@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { createServer } from "../mcp/server";
 import { StdioTransport } from "../mcp/stdio-transport";
 import { VaultRegistry } from "../utils/vaults";
