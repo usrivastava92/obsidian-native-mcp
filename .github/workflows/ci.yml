@@ -62,9 +62,13 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - run: npm install -g npm@latest
+      - name: Install npm with OIDC support
+        run: npm install --no-save npm@11.5.1
       - run: npm run build
       - name: Semantic Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          npm --version
+          npx semantic-release

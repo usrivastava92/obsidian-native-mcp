@@ -9,7 +9,7 @@ Direct filesystem access — no Obsidian process, no REST API plugin required.
 [![Release](https://img.shields.io/github/v/release/usrivastava92/obsidian-native-mcp?logo=semanticrelease)](https://github.com/usrivastava92/obsidian-native-mcp/releases)
 [![npm](https://img.shields.io/npm/v/obsidian-native-mcp?logo=npm)](https://www.npmjs.com/package/obsidian-native-mcp)
 [![npm downloads](https://img.shields.io/npm/dm/obsidian-native-mcp?logo=npm)](https://www.npmjs.com/package/obsidian-native-mcp)
-[![License](https://img.shields.io/github/license/usrivastava92/obsidian-native-mcp)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
 
 </div>
