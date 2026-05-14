@@ -7,9 +7,7 @@ interface Frontmatter {
   [key: string]: any;
 }
 
-function parseFrontmatter(
-  content: string
-): { frontmatter: Frontmatter; body: string } | null {
+function parseFrontmatter(content: string): { frontmatter: Frontmatter; body: string } | null {
   if (!content.startsWith("---")) return null;
   const endIndex = content.indexOf("---", 3);
   if (endIndex === -1) return null;
@@ -21,13 +19,12 @@ function parseFrontmatter(
     if (colonIndex === -1) continue;
     const key = line.slice(0, colonIndex).trim();
     let value: any = line.slice(colonIndex + 1).trim();
-    if (value.startsWith('"') && value.endsWith('"'))
-      value = value.slice(1, -1);
+    if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
     else if (value.startsWith("[") && value.endsWith("]")) {
       value = value
         .slice(1, -1)
         .split(",")
-        .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+        .map((s: string) => s.trim().replace(/^["']|["']$/g, ""))
         .filter(Boolean);
     }
     frontmatter[key] = value;
@@ -73,8 +70,7 @@ export class PromptHandler {
         const promptArgs = parsePromptParameters(parsed?.body || content);
         prompts.push({
           name: entry,
-          description:
-            parsed?.frontmatter?.description || entry.replace(".md", ""),
+          description: parsed?.frontmatter?.description || entry.replace(".md", ""),
           arguments: promptArgs,
         });
       } catch {
@@ -87,7 +83,7 @@ export class PromptHandler {
 
   async get(
     name: string,
-    vaultName?: string
+    vaultName?: string,
   ): Promise<{
     messages: Array<{ role: string; content: { type: string; text: string } }>;
   }> {
@@ -132,9 +128,7 @@ function parsePromptParameters(content: string): PromptParameter[] {
   while ((match = regex.exec(content)) !== null) {
     try {
       const argsStr = match[1];
-      const args = argsStr
-        .split(",")
-        .map((s) => s.trim().replace(/^["']|["']$/g, ""));
+      const args = argsStr.split(",").map((s) => s.trim().replace(/^["']|["']$/g, ""));
 
       if (args.length >= 1) {
         params.push({

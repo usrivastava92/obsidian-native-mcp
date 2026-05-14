@@ -9,10 +9,7 @@ export interface FileEntry {
   mtime?: Date;
 }
 
-export function listFiles(
-  vaultPath: string,
-  directory?: string
-): FileEntry[] {
+export function listFiles(vaultPath: string, directory?: string): FileEntry[] {
   const targetDir = directory ? join(vaultPath, directory) : vaultPath;
 
   if (!Bun.file(targetDir).exists()) {
@@ -42,7 +39,7 @@ export function listFiles(
 
 export async function readFile(
   vaultPath: string,
-  filename: string
+  filename: string,
 ): Promise<{ content: string; frontmatter?: Record<string, any> }> {
   const fullPath = join(vaultPath, filename);
   const bunFile = Bun.file(fullPath);
@@ -68,7 +65,7 @@ export async function readFile(
 export async function createFile(
   vaultPath: string,
   filename: string,
-  content: string
+  content: string,
 ): Promise<void> {
   const fullPath = join(vaultPath, filename);
   const dir = dirname(fullPath);
@@ -83,7 +80,7 @@ export async function createFile(
 export async function appendFile(
   vaultPath: string,
   filename: string,
-  content: string
+  content: string,
 ): Promise<void> {
   const fullPath = join(vaultPath, filename);
   const dir = dirname(fullPath);
@@ -122,7 +119,7 @@ export async function patchFile(
     contentType?: string;
     targetDelimiter?: string;
     trimTargetWhitespace?: boolean;
-  }
+  },
 ): Promise<string> {
   const fullPath = join(vaultPath, filename);
   const bunFile = Bun.file(fullPath);
@@ -149,7 +146,7 @@ export async function patchFile(
 }
 
 function parseFrontmatter(
-  content: string
+  content: string,
 ): { frontmatter: Record<string, any>; body: string } | null {
   if (!content.startsWith("---")) return null;
 
@@ -172,7 +169,7 @@ function parseFrontmatter(
       value = value
         .slice(1, -1)
         .split(",")
-        .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+        .map((s: string) => s.trim().replace(/^["']|["']$/g, ""))
         .filter(Boolean);
     }
 
@@ -186,7 +183,7 @@ function patchFrontmatter(
   content: string,
   operation: "append" | "prepend" | "replace",
   target: string,
-  newContent: string
+  newContent: string,
 ): string {
   const parsed = parseFrontmatter(content);
 
@@ -211,9 +208,7 @@ function patchFrontmatter(
     const bodyLines = lines.slice(fmEnd + 1);
 
     if (operation === "replace") {
-      const existing = fmLines.findIndex((l) =>
-        l.trim().startsWith(target + ":")
-      );
+      const existing = fmLines.findIndex((l) => l.trim().startsWith(target + ":"));
       if (existing !== -1) {
         fmLines[existing] = `${target}: ${newContent}`;
       } else {
@@ -236,7 +231,7 @@ function patchFrontmatter(
 function findHeadingLine(
   lines: string[],
   target: string,
-  delimiter: string
+  delimiter: string,
 ): { lineIndex: number; level: number } | null {
   const parts = target.split(delimiter).map((s) => s.trim());
 
@@ -258,11 +253,7 @@ function findHeadingLine(
   return { lineIndex: currentLine, level: match ? match[1].length : 1 };
 }
 
-function getHeadingContentEnd(
-  lines: string[],
-  startLine: number,
-  level: number
-): number {
+function getHeadingContentEnd(lines: string[], startLine: number, level: number): number {
   for (let i = startLine + 1; i < lines.length; i++) {
     const match = lines[i].match(/^(#{1,6})\s/);
     if (match && match[1].length <= level) {
@@ -277,7 +268,7 @@ function patchHeading(
   operation: "append" | "prepend" | "replace",
   target: string,
   newContent: string,
-  options?: any
+  options?: any,
 ): string {
   const delimiter = options?.targetDelimiter || "::";
   const lines = content.split("\n");
@@ -290,11 +281,7 @@ function patchHeading(
     return content + `\n\n## ${lastPart}\n\n${newContent}`;
   }
 
-  const sectionEnd = getHeadingContentEnd(
-    lines,
-    heading.lineIndex,
-    heading.level
-  );
+  const sectionEnd = getHeadingContentEnd(lines, heading.lineIndex, heading.level);
 
   if (operation === "replace") {
     const newLines = [
@@ -306,11 +293,7 @@ function patchHeading(
   }
 
   if (operation === "append") {
-    const newLines = [
-      ...lines.slice(0, sectionEnd),
-      newContent,
-      ...lines.slice(sectionEnd),
-    ];
+    const newLines = [...lines.slice(0, sectionEnd), newContent, ...lines.slice(sectionEnd)];
     return newLines.join("\n");
   }
 
@@ -330,7 +313,7 @@ function patchBlock(
   content: string,
   operation: "append" | "prepend" | "replace",
   target: string,
-  newContent: string
+  newContent: string,
 ): string {
   const blockId = target.startsWith("^") ? target : `^${target}`;
   const lines = content.split("\n");
@@ -342,8 +325,7 @@ function patchBlock(
   }
 
   if (operation === "replace") {
-    lines[blockIndex] = lines[blockIndex]
-      .replace(/^(.*?)(\s+\^\w+)?$/, `${newContent} ${blockId}`);
+    lines[blockIndex] = lines[blockIndex].replace(/^(.*?)(\s+\^\w+)?$/, `${newContent} ${blockId}`);
     return lines.join("\n");
   }
 

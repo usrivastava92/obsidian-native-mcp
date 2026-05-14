@@ -13,7 +13,7 @@ export async function searchInVault(
   vaultPath: string,
   query: string,
   directory?: string,
-  contextLength: number = 100
+  contextLength: number = 100,
 ): Promise<SearchMatch[]> {
   const searchDir = directory ? join(vaultPath, directory) : vaultPath;
   const results: SearchMatch[] = [];
@@ -28,7 +28,7 @@ async function walkDir(
   vaultPath: string,
   results: SearchMatch[],
   searchTerms: string[],
-  contextLength: number
+  contextLength: number,
 ): Promise<void> {
   let entries: string[];
   try {
@@ -70,14 +70,9 @@ async function walkDir(
             file: relPath,
             line: i + 1,
             content: lines[i].substring(0, 500),
-            contextBefore:
-              i > 0
-                ? lines[i - 1].substring(0, contextLength)
-                : undefined,
+            contextBefore: i > 0 ? lines[i - 1].substring(0, contextLength) : undefined,
             contextAfter:
-              i < lines.length - 1
-                ? lines[i + 1].substring(0, contextLength)
-                : undefined,
+              i < lines.length - 1 ? lines[i + 1].substring(0, contextLength) : undefined,
           });
         }
       }

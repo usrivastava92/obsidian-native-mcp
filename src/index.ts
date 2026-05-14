@@ -10,7 +10,7 @@ async function main() {
     process.exit(0);
   }
 
-  console.error("native-mcp server starting");
+  console.error("obsidian-native-mcp server starting");
   await startMcpServer(registry);
 }
 

@@ -1,5 +1,5 @@
 import { homedir, platform } from "os";
-import { resolve, basename, join, sep } from "path";
+import { resolve, basename, join } from "path";
 import { readFileSync, existsSync, readdirSync, statSync } from "fs";
 
 const IS_WIN = platform() === "win32";
@@ -22,20 +22,24 @@ export class VaultRegistry {
       for (const v of fromConfig) this.vaults.set(v.name, v.path);
     } else {
       const hint = IS_WIN
-        ? "Set OBSIDIAN_VAULT_PATHS or create %APPDATA%\\native-mcp\\vaults.json"
-        : 'Set OBSIDIAN_VAULT_PATHS or create ~/.config/native-mcp/vaults.json';
+        ? "Set OBSIDIAN_VAULT_PATHS or create %APPDATA%\\obsidian-native-mcp\\vaults.json"
+        : "Set OBSIDIAN_VAULT_PATHS or create ~/.config/obsidian-native-mcp/vaults.json";
       console.error(`No vaults configured. ${hint}`);
       process.exit(1);
     }
 
-    console.error(`Configured vaults: ${this.list().map((v) => `${v.name} -> ${v.path}`).join(", ")}`);
+    console.error(
+      `Configured vaults: ${this.list()
+        .map((v) => `${v.name} -> ${v.path}`)
+        .join(", ")}`,
+    );
   }
 
   private parseEnv(): VaultConfig[] {
     const envVal = process.env.OBSIDIAN_VAULT_PATHS;
     if (!envVal) return [];
 
-    const separator = IS_WIN ? /[;\n]/ : /[:;\n]/;
+    const separator = /[;\n]/;
     const parts = envVal
       .split(separator)
       .map((s) => s.trim())
@@ -49,11 +53,14 @@ export class VaultRegistry {
 
   private configDir(): string {
     if (IS_WIN) {
-      return resolve(process.env.APPDATA || join(homedir(), "AppData", "Roaming"), "native-mcp");
+      return resolve(
+        process.env.APPDATA || join(homedir(), "AppData", "Roaming"),
+        "obsidian-native-mcp",
+      );
     }
     const xdg = process.env.XDG_CONFIG_HOME;
-    if (xdg) return resolve(xdg, "native-mcp");
-    return resolve(homedir(), ".config", "native-mcp");
+    if (xdg) return resolve(xdg, "obsidian-native-mcp");
+    return resolve(homedir(), ".config", "obsidian-native-mcp");
   }
 
   private parseConfigFile(): VaultConfig[] {
@@ -67,8 +74,8 @@ export class VaultRegistry {
       const resolved: VaultConfig[] = [];
 
       const entries = config.vaults
-        ? Object.entries(config.vaults) as [string, unknown][]
-        : Object.entries(config).filter(([k]) => k !== "default") as [string, unknown][];
+        ? (Object.entries(config.vaults) as [string, unknown][])
+        : (Object.entries(config).filter(([k]) => k !== "default") as [string, unknown][]);
 
       for (const [name, path] of entries) {
         if (typeof path === "string") {
@@ -86,10 +93,10 @@ export class VaultRegistry {
     if (name) {
       const path = this.vaults.get(name);
       if (!path) {
-        const available = this.list().map((v) => v.name).join(", ");
-        throw new Error(
-          `Unknown vault "${name}". Available vaults: ${available}`
-        );
+        const available = this.list()
+          .map((v) => v.name)
+          .join(", ");
+        throw new Error(`Unknown vault "${name}". Available vaults: ${available}`);
       }
       return path;
     }
@@ -98,10 +105,10 @@ export class VaultRegistry {
       return this.vaults.values().next().value!;
     }
 
-    const available = this.list().map((v) => v.name).join(", ");
-    throw new Error(
-      `Multiple vaults configured but no vault specified. Choose one: ${available}`
-    );
+    const available = this.list()
+      .map((v) => v.name)
+      .join(", ");
+    throw new Error(`Multiple vaults configured but no vault specified. Choose one: ${available}`);
   }
 
   list(): VaultConfig[] {
@@ -125,11 +132,15 @@ export class VaultRegistry {
             } else if (entry.endsWith(".md")) {
               fileCount++;
             }
-          } catch {}
+          } catch {
+            // skip unreadable entries
+          }
         }
       };
       walkDir(vaultPath);
-    } catch {}
+    } catch {
+      // skip unreadable directories
+    }
     return { name: basename(vaultPath), path: vaultPath, fileCount };
   }
 }

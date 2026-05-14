@@ -29,8 +29,7 @@ export async function startMcpServer(registry: VaultRegistry) {
     },
     {
       name: "get_vault_info",
-      description:
-        "Get stats for a vault (file count, path, name).",
+      description: "Get stats for a vault (file count, path, name).",
       inputSchema: {
         type: "object",
         properties: {
@@ -42,23 +41,21 @@ export async function startMcpServer(registry: VaultRegistry) {
       },
     },
     {
-      name: "list_vault_files",
-      description:
-        "List files in the root directory or a specified subdirectory of your vault.",
+      name: "list_files",
+      description: "List files in the root directory or a specified subdirectory of your vault.",
       inputSchema: {
         type: "object",
         properties: {
           ...vaultParam,
           directory: {
             type: "string",
-            description:
-              "Optional subdirectory path relative to vault root",
+            description: "Optional subdirectory path relative to vault root",
           },
         },
       },
     },
     {
-      name: "get_vault_file",
+      name: "get_file",
       description: "Get the content of a file from your vault.",
       inputSchema: {
         type: "object",
@@ -78,9 +75,8 @@ export async function startMcpServer(registry: VaultRegistry) {
       },
     },
     {
-      name: "create_vault_file",
-      description:
-        "Create a new file in your vault or update an existing one.",
+      name: "create_file",
+      description: "Create a new file in your vault or update an existing one.",
       inputSchema: {
         type: "object",
         properties: {
@@ -95,7 +91,7 @@ export async function startMcpServer(registry: VaultRegistry) {
       },
     },
     {
-      name: "append_to_vault_file",
+      name: "append_to_file",
       description: "Append content to a new or existing file.",
       inputSchema: {
         type: "object",
@@ -114,7 +110,7 @@ export async function startMcpServer(registry: VaultRegistry) {
       },
     },
     {
-      name: "patch_vault_file",
+      name: "patch_file",
       description:
         "Insert or modify content in a file relative to a heading, block reference, or frontmatter field.",
       inputSchema: {
@@ -139,17 +135,11 @@ export async function startMcpServer(registry: VaultRegistry) {
           targetDelimiter: { type: "string", default: "::" },
           trimTargetWhitespace: { type: "boolean", default: true },
         },
-        required: [
-          "filename",
-          "operation",
-          "targetType",
-          "target",
-          "content",
-        ],
+        required: ["filename", "operation", "targetType", "target", "content"],
       },
     },
     {
-      name: "delete_vault_file",
+      name: "delete_file",
       description: "Delete a file from your vault.",
       inputSchema: {
         type: "object",
@@ -164,9 +154,8 @@ export async function startMcpServer(registry: VaultRegistry) {
       },
     },
     {
-      name: "search_vault",
-      description:
-        "Search for documents matching a text query in your vault.",
+      name: "search",
+      description: "Search for documents matching a text query in your vault.",
       inputSchema: {
         type: "object",
         properties: {
@@ -209,9 +198,7 @@ export async function startMcpServer(registry: VaultRegistry) {
     }
   });
 
-  async function handleRequest(
-    msg: JSONRPCRequest
-  ): Promise<JSONRPCResponse | null> {
+  async function handleRequest(msg: JSONRPCRequest): Promise<JSONRPCResponse | null> {
     const { method, params, id } = msg;
 
     switch (method) {
@@ -223,7 +210,7 @@ export async function startMcpServer(registry: VaultRegistry) {
           result: {
             protocolVersion: clientProtocol || "2024-11-05",
             capabilities: { tools: {}, prompts: {} },
-            serverInfo: { name: "native-mcp", version: "0.2.0" },
+            serverInfo: { name: "obsidian-native-mcp", version: "0.2.0" },
           },
         };
       }
@@ -275,10 +262,7 @@ export async function startMcpServer(registry: VaultRegistry) {
       case "prompts/get": {
         try {
           const promptVault = params?.arguments?.vault;
-          const result = await promptHandler.get(
-            params?.name,
-            promptVault
-          );
+          const result = await promptHandler.get(params?.name, promptVault);
           return { jsonrpc: "2.0", id, result };
         } catch (err: any) {
           return {

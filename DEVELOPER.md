@@ -24,6 +24,7 @@ src/
 **Bun-native I/O.** Uses `Bun.file()`, `Bun.write()`, and `Bun.file().exists()` for all file operations. These are compiled into the binary by Bun's bundler — no `fs` overhead at runtime (except `readdirSync`/`statSync` for directory listing where Bun has no equivalent).
 
 **Direct filesystem access.** Unlike `obsidian-mcp-tools` which communicates via HTTP with the Local REST API plugin, this server reads/writes files directly. This means:
+
 - Obsidian doesn't need to be running
 - No API key management
 - Lower latency (no HTTP round-trip)
@@ -67,12 +68,12 @@ OBSIDIAN_VAULT_PATHS=/path/to/vault node --input-type=module -e '
 const msgs = [
   {jsonrpc:"2.0",id:1,method:"initialize",params:{}},
   {jsonrpc:"2.0",id:2,method:"tools/call",params:{name:"list_vaults",arguments:{}}},
-  {jsonrpc:"2.0",id:3,method:"tools/call",params:{name:"list_vault_files",arguments:{vault:"default"}}},
+  {jsonrpc:"2.0",id:3,method:"tools/call",params:{name:"list_files",arguments:{vault:"default"}}},
 ];
 let input = "";
 for(const m of msgs){ const s = JSON.stringify(m); input += "Content-Length: "+s.length+"\r\n\r\n"+s; }
 const {spawn} = await import("child_process");
-const child = spawn("./dist/native-mcp", [], {stdio:["pipe","pipe","pipe"]});
+const child = spawn("./dist/obsidian-native-mcp", [], {stdio:["pipe","pipe","pipe"]});
 let buf = "";
 child.stdout.on("data", c => buf += c.toString());
 child.on("close", () => {
@@ -110,10 +111,10 @@ bun run build:windows
 
 # 3. Create GitHub release
 gh release create v0.2.0 \
-  ./dist/native-mcp-linux \
-  ./dist/native-mcp-macos-arm64 \
-  ./dist/native-mcp-macos-x64 \
-  ./dist/native-mcp-windows.exe \
+  ./dist/obsidian-native-mcp-linux \
+  ./dist/obsidian-native-mcp-macos-arm64 \
+  ./dist/obsidian-native-mcp-macos-x64 \
+  ./dist/obsidian-native-mcp-windows.exe \
   --title "v0.2.0" \
   --notes "Release notes here"
 
@@ -132,11 +133,11 @@ Server → Client:  Content-Length: <N>\r\n\r\n<JSON-RPC body>
 
 ### Supported Methods
 
-| Method | Purpose |
-|---|---|
-| `initialize` | Protocol handshake |
-| `tools/list` | List available tools |
-| `tools/call` | Execute a tool |
-| `prompts/list` | List available prompts |
-| `prompts/get` | Get prompt content |
+| Method                      | Purpose                   |
+| --------------------------- | ------------------------- |
+| `initialize`                | Protocol handshake        |
+| `tools/list`                | List available tools      |
+| `tools/call`                | Execute a tool            |
+| `prompts/list`              | List available prompts    |
+| `prompts/get`               | Get prompt content        |
 | `notifications/initialized` | Client-ready notification |

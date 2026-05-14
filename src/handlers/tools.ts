@@ -23,13 +23,13 @@ export class VaultFileHandler {
     return {
       list_vaults: this.handleListVaults.bind(this),
       get_vault_info: this.handleVaultInfo.bind(this),
-      list_vault_files: this.handleListFiles.bind(this),
-      get_vault_file: this.handleGetFile.bind(this),
-      create_vault_file: this.handleCreateFile.bind(this),
-      append_to_vault_file: this.handleAppendFile.bind(this),
-      patch_vault_file: this.handlePatchFile.bind(this),
-      delete_vault_file: this.handleDeleteFile.bind(this),
-      search_vault: this.handleSearch.bind(this),
+      list_files: this.handleListFiles.bind(this),
+      get_file: this.handleGetFile.bind(this),
+      create_file: this.handleCreateFile.bind(this),
+      append_to_file: this.handleAppendFile.bind(this),
+      patch_file: this.handlePatchFile.bind(this),
+      delete_file: this.handleDeleteFile.bind(this),
+      search: this.handleSearch.bind(this),
     };
   }
 
@@ -37,9 +37,7 @@ export class VaultFileHandler {
     return this.registry.resolve(args.vault);
   }
 
-  private async handleListVaults(
-    _args: Record<string, any>
-  ): Promise<ToolResult> {
+  private async handleListVaults(_args: Record<string, any>): Promise<ToolResult> {
     return {
       content: [
         {
@@ -50,18 +48,14 @@ export class VaultFileHandler {
     };
   }
 
-  private async handleVaultInfo(
-    args: Record<string, any>
-  ): Promise<ToolResult> {
+  private async handleVaultInfo(args: Record<string, any>): Promise<ToolResult> {
     const info = this.registry.info(args.vault);
     return {
       content: [{ type: "text", text: JSON.stringify(info, null, 2) }],
     };
   }
 
-  private async handleListFiles(
-    args: Record<string, any>
-  ): Promise<ToolResult> {
+  private async handleListFiles(args: Record<string, any>): Promise<ToolResult> {
     const vaultPath = this.resolveVault(args);
     const entries = listFiles(vaultPath, args.directory);
     return {
@@ -69,9 +63,7 @@ export class VaultFileHandler {
     };
   }
 
-  private async handleGetFile(
-    args: Record<string, any>
-  ): Promise<ToolResult> {
+  private async handleGetFile(args: Record<string, any>): Promise<ToolResult> {
     const vaultPath = this.resolveVault(args);
     const result = await readFile(vaultPath, args.filename);
 
@@ -87,7 +79,7 @@ export class VaultFileHandler {
                 content: result.content,
               },
               null,
-              2
+              2,
             ),
           },
         ],
@@ -97,9 +89,7 @@ export class VaultFileHandler {
     return { content: [{ type: "text", text: result.content }] };
   }
 
-  private async handleCreateFile(
-    args: Record<string, any>
-  ): Promise<ToolResult> {
+  private async handleCreateFile(args: Record<string, any>): Promise<ToolResult> {
     const vaultPath = this.resolveVault(args);
     await createFile(vaultPath, args.filename, args.content);
     return {
@@ -107,9 +97,7 @@ export class VaultFileHandler {
     };
   }
 
-  private async handleAppendFile(
-    args: Record<string, any>
-  ): Promise<ToolResult> {
+  private async handleAppendFile(args: Record<string, any>): Promise<ToolResult> {
     const vaultPath = this.resolveVault(args);
     await appendFile(vaultPath, args.filename, args.content);
     return {
@@ -117,9 +105,7 @@ export class VaultFileHandler {
     };
   }
 
-  private async handlePatchFile(
-    args: Record<string, any>
-  ): Promise<ToolResult> {
+  private async handlePatchFile(args: Record<string, any>): Promise<ToolResult> {
     const vaultPath = this.resolveVault(args);
     const result = await patchFile(
       vaultPath,
@@ -132,7 +118,7 @@ export class VaultFileHandler {
         contentType: args.contentType,
         targetDelimiter: args.targetDelimiter,
         trimTargetWhitespace: args.trimTargetWhitespace,
-      }
+      },
     );
     return {
       content: [
@@ -142,9 +128,7 @@ export class VaultFileHandler {
     };
   }
 
-  private async handleDeleteFile(
-    args: Record<string, any>
-  ): Promise<ToolResult> {
+  private async handleDeleteFile(args: Record<string, any>): Promise<ToolResult> {
     const vaultPath = this.resolveVault(args);
     deleteFile(vaultPath, args.filename);
     return {
@@ -152,16 +136,9 @@ export class VaultFileHandler {
     };
   }
 
-  private async handleSearch(
-    args: Record<string, any>
-  ): Promise<ToolResult> {
+  private async handleSearch(args: Record<string, any>): Promise<ToolResult> {
     const vaultPath = this.resolveVault(args);
-    const matches = await searchInVault(
-      vaultPath,
-      args.query,
-      args.directory,
-      args.contextLength
-    );
+    const matches = await searchInVault(vaultPath, args.query, args.directory, args.contextLength);
     return {
       content: [{ type: "text", text: JSON.stringify(matches, null, 2) }],
     };
