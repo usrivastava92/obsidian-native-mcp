@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  BUN_VERSION: "1.3"
+
+jobs:
+  lint:
+    name: Lint and Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: lint
+    strategy:
+      matrix:
+        include:
+          - target: bun-linux-x64-baseline
+            artifact: native-mcp-linux
+            os: ubuntu-latest
+          - target: bun-darwin-arm64
+            artifact: native-mcp-macos-arm64
+            os: macos-latest
+          - target: bun-darwin-x64
+            artifact: native-mcp-macos-x64
+            os: macos-latest
+          - target: bun-windows-x64-baseline
+            artifact: native-mcp-windows.exe
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - run: bun build ./src/index.ts --compile --minify --target=${{ matrix.target }} --outfile dist/${{ matrix.artifact }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      attestations: write
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-mcp-*
+          merge-multiple: true
+      - name: Generate SLSA attestations
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: "native-mcp-*"
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            native-mcp-* \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
