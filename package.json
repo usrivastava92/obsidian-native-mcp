@@ -15,6 +15,7 @@
     "build:plugin": "node scripts/build-plugin.mjs",
     "dev": "tsx watch src/cli/index.ts",
     "start": "node dist/cli/index.js",
+    "test": "tsx --test tests/*.test.ts",
     "check": "tsc --noEmit",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",

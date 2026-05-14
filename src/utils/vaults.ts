@@ -9,16 +9,23 @@ export interface VaultConfig {
   path: string;
 }
 
+export interface VaultValidation {
+  missing: VaultConfig[];
+}
+
 export class VaultRegistry {
   private vaults: Map<string, string> = new Map();
+  private source: "env" | "config" | "none" = "none";
 
   constructor() {
     const fromEnv = this.parseEnv();
     const fromConfig = this.parseConfigFile();
 
     if (fromEnv.length > 0) {
+      this.source = "env";
       for (const v of fromEnv) this.vaults.set(v.name, v.path);
     } else if (fromConfig.length > 0) {
+      this.source = "config";
       for (const v of fromConfig) this.vaults.set(v.name, v.path);
     }
   }
@@ -28,6 +35,7 @@ export class VaultRegistry {
     for (const v of vaults) {
       this.vaults.set(v.name, v.path);
     }
+    this.source = vaults.length > 0 ? "config" : "none";
   }
 
   static discoverFromObsidian(): VaultConfig[] {
@@ -67,10 +75,20 @@ export class VaultRegistry {
       return this.vaults.values().next().value!;
     }
 
+    if (this.vaults.size === 0) {
+      throw new Error(
+        "No vaults configured. Set OBSIDIAN_VAULT_PATHS or ~/.config/obsidian-native-mcp/vaults.json.",
+      );
+    }
+
     const available = this.list()
       .map((v) => v.name)
       .join(", ");
     throw new Error(`Multiple vaults configured but no vault specified. Choose one: ${available}`);
+  }
+
+  getSource(): "env" | "config" | "none" {
+    return this.source;
   }
 
   list(): VaultConfig[] {
@@ -78,6 +96,11 @@ export class VaultRegistry {
       name,
       path,
     }));
+  }
+
+  validate(): VaultValidation {
+    const missing = this.list().filter((vault) => !existsSync(vault.path));
+    return { missing };
   }
 
   info(name?: string): { name: string; path: string; fileCount: number } {

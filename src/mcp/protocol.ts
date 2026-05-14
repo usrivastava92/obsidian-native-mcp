@@ -35,7 +35,8 @@ export interface PromptDefinition {
 
 export function encodeMessage(message: any): Uint8Array {
   const json = JSON.stringify(message);
-  const header = `Content-Length: ${json.length}\r\n\r\n`;
+  const bodyLength = Buffer.byteLength(json, "utf8");
+  const header = `Content-Length: ${bodyLength}\r\n\r\n`;
   const encoder = new TextEncoder();
   const headerBytes = encoder.encode(header);
   const bodyBytes = encoder.encode(json);
@@ -49,21 +50,46 @@ export function sendMessage(message: any): void {
   process.stdout.write(encodeMessage(message));
 }
 
-export function parseMessages(buffer: string): { messages: string[]; remaining: string } {
+export function parseMessages(buffer: Buffer): { messages: string[]; remaining: Buffer } {
   const messages: string[] = [];
-  let remaining = buffer;
+  let offset = 0;
 
   while (true) {
-    const headerMatch = remaining.match(/^Content-Length: (\d+)\r\n\r\n/);
-    if (!headerMatch) break;
-    const contentLength = parseInt(headerMatch[1], 10);
-    const headerEnd = headerMatch[0].length;
-    const totalLength = headerEnd + contentLength;
-    if (remaining.length < totalLength) break;
-    const jsonStr = remaining.slice(headerEnd, totalLength);
-    remaining = remaining.slice(totalLength);
+    const headerEnd = buffer.indexOf("\r\n\r\n", offset, "utf8");
+    if (headerEnd === -1) break;
+
+    const headerText = buffer.slice(offset, headerEnd).toString("utf8");
+    const headers = headerText.split("\r\n");
+    const contentLengthHeader = headers.find((header) =>
+      header.toLowerCase().startsWith("content-length:"),
+    );
+    if (!contentLengthHeader) break;
+
+    const contentLength = parseInt(contentLengthHeader.slice("Content-Length:".length).trim(), 10);
+    if (Number.isNaN(contentLength)) break;
+
+    const bodyStart = headerEnd + 4;
+    const bodyEnd = bodyStart + contentLength;
+    if (buffer.length < bodyEnd) break;
+
+    const jsonStr = buffer.slice(bodyStart, bodyEnd).toString("utf8");
+    offset = bodyEnd;
     messages.push(jsonStr);
   }
 
-  return { messages, remaining };
+  if (messages.length > 0) {
+    return { messages, remaining: buffer.subarray(offset) };
+  }
+
+  while (true) {
+    const newlineIndex = buffer.indexOf("\n", offset, "utf8");
+    if (newlineIndex === -1) break;
+
+    const line = buffer.slice(offset, newlineIndex).toString("utf8").trim();
+    offset = newlineIndex + 1;
+    if (!line) continue;
+    messages.push(line);
+  }
+
+  return { messages, remaining: buffer.subarray(offset) };
 }

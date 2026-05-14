@@ -1,7 +1,10 @@
 import type { JSONRPCRequest, JSONRPCResponse, ToolDefinition } from "./protocol";
 import { VaultFileHandler } from "../handlers/tools";
 import { PromptHandler } from "../handlers/prompts";
+import { createLogger, formatError } from "../utils/log";
 import type { VaultRegistry } from "../utils/vaults";
+
+const log = createLogger("server");
 
 const vaultParam = {
   vault: {
@@ -185,6 +188,10 @@ export function createServer(registry: VaultRegistry): ServerInstance {
     switch (method) {
       case "initialize": {
         const clientProtocol = params?.protocolVersion;
+        log.info("client initialized", {
+          clientProtocol: clientProtocol || "2024-11-05",
+          vaultCount: vaultList.length,
+        });
         return {
           jsonrpc: "2.0",
           id,
@@ -218,6 +225,10 @@ export function createServer(registry: VaultRegistry): ServerInstance {
           const result = await handler(args);
           return { jsonrpc: "2.0", id, result };
         } catch (err: any) {
+          log.error("tool call failed", {
+            tool: String(toolName),
+            error: formatError(err),
+          });
           return {
             jsonrpc: "2.0",
             id,
@@ -232,6 +243,7 @@ export function createServer(registry: VaultRegistry): ServerInstance {
           const promptList = await promptHandler.list(promptVault);
           return { jsonrpc: "2.0", id, result: { prompts: promptList } };
         } catch (err: any) {
+          log.error("prompt listing failed", { error: formatError(err) });
           return {
             jsonrpc: "2.0",
             id,
@@ -246,6 +258,10 @@ export function createServer(registry: VaultRegistry): ServerInstance {
           const result = await promptHandler.get(params?.name, promptVault);
           return { jsonrpc: "2.0", id, result };
         } catch (err: any) {
+          log.error("prompt fetch failed", {
+            prompt: typeof params?.name === "string" ? params.name : "",
+            error: formatError(err),
+          });
           return {
             jsonrpc: "2.0",
             id,
@@ -260,6 +276,7 @@ export function createServer(registry: VaultRegistry): ServerInstance {
         return null;
 
       default:
+        log.warn("method not found", { method });
         return {
           jsonrpc: "2.0",
           id,
