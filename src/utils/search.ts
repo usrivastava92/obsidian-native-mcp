@@ -1,4 +1,5 @@
 import { readdirSync, statSync } from "fs";
+import { readFile } from "fs/promises";
 import { join, relative } from "path";
 
 export interface SearchMatch {
@@ -57,7 +58,7 @@ async function walkDir(
     if (!entry.endsWith(".md")) continue;
 
     try {
-      const content = await Bun.file(fullPath).text();
+      const content = await readFile(fullPath, "utf-8");
       const lines = content.split("\n");
       const relPath = relative(vaultPath, fullPath);
 

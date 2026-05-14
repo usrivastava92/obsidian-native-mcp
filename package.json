@@ -2,26 +2,20 @@
   "name": "obsidian-native-mcp",
   "version": "0.2.0",
   "description": "Zero-dependency MCP server for Obsidian vaults. Direct filesystem access — no Obsidian process or REST API plugin needed.",
-  "type": "module",
-  "module": "src/index.ts",
   "bin": {
-    "obsidian-native-mcp": "./dist/obsidian-native-mcp"
+    "obsidian-native-mcp": "./dist/cli/index.js"
   },
   "scripts": {
-    "build": "bun build ./src/index.ts --compile --minify --sourcemap --target=bun-darwin-arm64 --outfile dist/obsidian-native-mcp",
-    "build:linux": "bun build ./src/index.ts --compile --minify --sourcemap --target=bun-linux-x64-baseline --outfile dist/obsidian-native-mcp-linux",
-    "build:mac-arm64": "bun build ./src/index.ts --compile --minify --sourcemap --target=bun-darwin-arm64 --outfile dist/obsidian-native-mcp-macos-arm64",
-    "build:mac-x64": "bun build ./src/index.ts --compile --minify --sourcemap --target=bun-darwin-x64 --outfile dist/obsidian-native-mcp-macos-x64",
-    "build:windows": "bun build ./src/index.ts --compile --minify --sourcemap --target=bun-windows-x64-baseline --outfile dist/obsidian-native-mcp-windows.exe",
-    "postbuild": "rm -f .*.bun-build",
-    "clean": "rm -rf dist/ .*.bun-build",
-    "dev": "bun --watch src/index.ts",
+    "build": "tsc",
+    "build:plugin": "node scripts/build-plugin.mjs",
+    "dev": "tsx watch src/cli/index.ts",
+    "start": "node dist/cli/index.js",
     "check": "tsc --noEmit",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
-    "start": "bun src/index.ts",
+    "clean": "rm -rf dist/",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -35,11 +29,18 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/bun": "latest",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/exec": "^7.1.0",
+    "@semantic-release/git": "^10.0.1",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
     "eslint": "^10.3.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.4",
+    "obsidian": "^1.7.0",
     "prettier": "^3.8.3",
+    "semantic-release": "^25.0.3",
+    "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.59.3"
   }

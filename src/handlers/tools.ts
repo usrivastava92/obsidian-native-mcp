@@ -1,9 +1,9 @@
 import {
   listFiles,
-  readFile,
+  readFileHandler,
   createFile,
   appendFile,
-  deleteFile,
+  deleteFileHandler,
   patchFile,
 } from "../utils/fs-utils";
 import { searchInVault } from "../utils/search";
@@ -65,7 +65,7 @@ export class VaultFileHandler {
 
   private async handleGetFile(args: Record<string, any>): Promise<ToolResult> {
     const vaultPath = this.resolveVault(args);
-    const result = await readFile(vaultPath, args.filename);
+    const result = await readFileHandler(vaultPath, args.filename);
 
     if (args.format === "json") {
       return {
@@ -130,7 +130,7 @@ export class VaultFileHandler {
 
   private async handleDeleteFile(args: Record<string, any>): Promise<ToolResult> {
     const vaultPath = this.resolveVault(args);
-    deleteFile(vaultPath, args.filename);
+    deleteFileHandler(vaultPath, args.filename);
     return {
       content: [{ type: "text", text: "File deleted successfully" }],
     };

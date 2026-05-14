@@ -1,5 +1,4 @@
 import type { JSONRPCRequest, JSONRPCResponse, ToolDefinition } from "./protocol";
-import { sendMessage, parseMessages } from "./protocol";
 import { VaultFileHandler } from "../handlers/tools";
 import { PromptHandler } from "../handlers/prompts";
 import type { VaultRegistry } from "../utils/vaults";
@@ -12,7 +11,12 @@ const vaultParam = {
   },
 };
 
-export async function startMcpServer(registry: VaultRegistry) {
+export interface ServerInstance {
+  toolDefinitions: ToolDefinition[];
+  handleRequest(msg: JSONRPCRequest): Promise<JSONRPCResponse | null>;
+}
+
+export function createServer(registry: VaultRegistry): ServerInstance {
   const vaultList = registry.list();
   const vaultNames = vaultList.map((v) => v.name);
   vaultParam.vault.description = `Vault name. Available: ${vaultNames.join(", ")}`;
@@ -175,29 +179,6 @@ export async function startMcpServer(registry: VaultRegistry) {
     },
   ];
 
-  const stdinBuffer = { buffer: "" };
-
-  process.stdin.on("data", async (chunk: Buffer) => {
-    stdinBuffer.buffer += chunk.toString();
-
-    const { messages, remaining } = parseMessages(stdinBuffer.buffer);
-    stdinBuffer.buffer = remaining;
-
-    for (const jsonStr of messages) {
-      try {
-        const msg = JSON.parse(jsonStr);
-        if (msg.jsonrpc !== "2.0") continue;
-
-        if ("method" in msg && "id" in msg) {
-          const response = await handleRequest(msg as JSONRPCRequest);
-          if (response) sendMessage(response);
-        }
-      } catch (err: any) {
-        console.error("Error processing message:", err.message);
-      }
-    }
-  });
-
   async function handleRequest(msg: JSONRPCRequest): Promise<JSONRPCResponse | null> {
     const { method, params, id } = msg;
 
@@ -286,4 +267,6 @@ export async function startMcpServer(registry: VaultRegistry) {
         };
     }
   }
+
+  return { toolDefinitions, handleRequest };
 }

@@ -20,70 +20,32 @@ export class VaultRegistry {
       for (const v of fromEnv) this.vaults.set(v.name, v.path);
     } else if (fromConfig.length > 0) {
       for (const v of fromConfig) this.vaults.set(v.name, v.path);
-    } else {
-      const hint = IS_WIN
-        ? "Set OBSIDIAN_VAULT_PATHS or create %APPDATA%\\obsidian-native-mcp\\vaults.json"
-        : "Set OBSIDIAN_VAULT_PATHS or create ~/.config/obsidian-native-mcp/vaults.json";
-      console.error(`No vaults configured. ${hint}`);
-      process.exit(1);
     }
-
-    console.error(
-      `Configured vaults: ${this.list()
-        .map((v) => `${v.name} -> ${v.path}`)
-        .join(", ")}`,
-    );
   }
 
-  private parseEnv(): VaultConfig[] {
-    const envVal = process.env.OBSIDIAN_VAULT_PATHS;
-    if (!envVal) return [];
-
-    const separator = /[;\n]/;
-    const parts = envVal
-      .split(separator)
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    return parts.map((p) => {
-      const resolved = resolve(p.replace(/^~/, homedir()));
-      return { name: basename(resolved), path: resolved };
-    });
-  }
-
-  private configDir(): string {
-    if (IS_WIN) {
-      return resolve(
-        process.env.APPDATA || join(homedir(), "AppData", "Roaming"),
-        "obsidian-native-mcp",
-      );
+  configure(vaults: VaultConfig[]): void {
+    this.vaults.clear();
+    for (const v of vaults) {
+      this.vaults.set(v.name, v.path);
     }
-    const xdg = process.env.XDG_CONFIG_HOME;
-    if (xdg) return resolve(xdg, "obsidian-native-mcp");
-    return resolve(homedir(), ".config", "obsidian-native-mcp");
   }
 
-  private parseConfigFile(): VaultConfig[] {
-    const configPath = join(this.configDir(), "vaults.json");
-
-    if (!existsSync(configPath)) return [];
+  static discoverFromObsidian(): VaultConfig[] {
+    const configPath = obsidianConfigPath();
+    if (!configPath || !existsSync(configPath)) return [];
 
     try {
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(raw);
-      const resolved: VaultConfig[] = [];
+      const vaults = config.vaults as Record<string, { path: string }>;
+      if (!vaults) return [];
 
-      const entries = config.vaults
-        ? (Object.entries(config.vaults) as [string, unknown][])
-        : (Object.entries(config).filter(([k]) => k !== "default") as [string, unknown][]);
-
-      for (const [name, path] of entries) {
-        if (typeof path === "string") {
-          resolved.push({ name, path: resolve(path.replace(/^~/, homedir())) });
-        }
-      }
-
-      return resolved;
+      return Object.entries(vaults)
+        .filter(([, v]) => v && typeof v.path === "string")
+        .map(([name, v]) => ({
+          name,
+          path: resolve(v.path.replace(/^~/, homedir())),
+        }));
     } catch {
       return [];
     }
@@ -143,4 +105,71 @@ export class VaultRegistry {
     }
     return { name: basename(vaultPath), path: vaultPath, fileCount };
   }
+
+  private parseEnv(): VaultConfig[] {
+    const envVal = process.env.OBSIDIAN_VAULT_PATHS;
+    if (!envVal) return [];
+
+    const separator = /[;\n]/;
+    const parts = envVal
+      .split(separator)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    return parts.map((p) => {
+      const resolved = resolve(p.replace(/^~/, homedir()));
+      return { name: basename(resolved), path: resolved };
+    });
+  }
+
+  private configDir(): string {
+    if (IS_WIN) {
+      return resolve(
+        process.env.APPDATA || join(homedir(), "AppData", "Roaming"),
+        "obsidian-native-mcp",
+      );
+    }
+    const xdg = process.env.XDG_CONFIG_HOME;
+    if (xdg) return resolve(xdg, "obsidian-native-mcp");
+    return resolve(homedir(), ".config", "obsidian-native-mcp");
+  }
+
+  private parseConfigFile(): VaultConfig[] {
+    const configPath = join(this.configDir(), "vaults.json");
+    if (!existsSync(configPath)) return [];
+
+    try {
+      const raw = readFileSync(configPath, "utf-8");
+      const config = JSON.parse(raw);
+      const resolved: VaultConfig[] = [];
+
+      const entries = config.vaults
+        ? (Object.entries(config.vaults) as [string, unknown][])
+        : (Object.entries(config).filter(([k]) => k !== "default") as [string, unknown][]);
+
+      for (const [name, path] of entries) {
+        if (typeof path === "string") {
+          resolved.push({ name, path: resolve(path.replace(/^~/, homedir())) });
+        }
+      }
+
+      return resolved;
+    } catch {
+      return [];
+    }
+  }
+}
+
+function obsidianConfigPath(): string | null {
+  if (IS_WIN) {
+    const appData = process.env.APPDATA;
+    if (!appData) return null;
+    return resolve(appData, "obsidian", "obsidian.json");
+  }
+  if (platform() === "darwin") {
+    return resolve(homedir(), "Library", "Application Support", "obsidian", "obsidian.json");
+  }
+  const xdg = process.env.XDG_CONFIG_HOME;
+  if (xdg) return resolve(xdg, "obsidian", "obsidian.json");
+  return resolve(homedir(), ".config", "obsidian", "obsidian.json");
 }

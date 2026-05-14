@@ -14,40 +14,38 @@ Direct filesystem access — no Obsidian process, no REST API plugin required.
 
 </div>
 
-Obsidian Native MCP is a [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI assistants (Claude Desktop, etc.) direct, safe access to your Obsidian vault — without needing Obsidian to be running.
+Obsidian Native MCP is a [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI assistants (Claude Desktop, etc.) direct, safe access to your Obsidian vaults.
+
+**Two ways to use it:**
+
+- **Obsidian plugin** (recommended) — 1-click install, auto-discovers vaults, settings UI, runs inside Obsidian
+- **CLI** — standalone, works without Obsidian running, configured via env var or config file
 
 **Why Obsidian Native MCP over other solutions?**
 
 | Feature            | Obsidian Native MCP                    | obsidian-mcp-tools (archived)             |
 | ------------------ | -------------------------------------- | ----------------------------------------- |
-| Obsidian required? | **No** — pure filesystem               | Yes — must be running with Local REST API |
-| Dependencies       | **Zero** — uses only Bun stdlib        | MCP SDK, arktype, zod, radash, turndown…  |
-| Build              | **Single compiled binary**             | Bun-compiled binary                       |
+| Obsidian required? | **Plugin: no. CLI: no.**               | Yes — must be running with Local REST API |
+| Dependencies       | **Zero** — uses only Node.js stdlib    | MCP SDK, arktype, zod, radash, turndown…  |
+| Distribution       | Obsidian plugin + npm CLI              | Bun-compiled binary                       |
 | Multi-vault        | **Built-in** — one server, many vaults | No                                        |
-| Cross-platform     | **macOS / Linux / Windows**            | Same                                      |
+| Cross-platform     | **1 codebase, runs everywhere (WORA)** | Platform-specific binaries                |
 | File patching      | Headings, blocks, frontmatter          | Via REST API                              |
+| Setup effort       | Plugin: 1 click. CLI: one command.     | Manual download + config                  |
 
 ## Installation
 
-### Prerequisites
+### Obsidian plugin (recommended)
 
-- [Bun](https://bun.sh) v1.1+ (only needed to build from source)
+1. Open Obsidian → Settings → Community Plugins → Browse
+2. Search for "Obsidian Native MCP" and install
+3. Enable the plugin in Community Plugins list
+4. Go to plugin settings → toggle which vaults to expose → copy the MCP URL
 
-### Download
-
-Grab the latest binary from [releases](https://github.com/usrivastava92/obsidian-native-mcp/releases):
+### CLI (standalone)
 
 ```bash
-# macOS ARM64
-curl -L -o obsidian-native-mcp https://github.com/usrivastava92/obsidian-native-mcp/releases/latest/download/obsidian-native-mcp-macos-arm64
-chmod +x obsidian-native-mcp
-
-# Linux x64
-curl -L -o obsidian-native-mcp https://github.com/usrivastava92/obsidian-native-mcp/releases/latest/download/obsidian-native-mcp-linux
-chmod +x obsidian-native-mcp
-
-# Windows (PowerShell)
-curl -L -o obsidian-native-mcp.exe https://github.com/usrivastava92/obsidian-native-mcp/releases/latest/download/obsidian-native-mcp-windows.exe
+npm install -g obsidian-native-mcp
 ```
 
 ### Build from source
@@ -55,21 +53,19 @@ curl -L -o obsidian-native-mcp.exe https://github.com/usrivastava92/obsidian-nat
 ```bash
 git clone https://github.com/usrivastava92/obsidian-native-mcp.git
 cd obsidian-native-mcp
-bun install
-bun run build
-```
-
-### npm
-
-```bash
-npm install -g obsidian-native-mcp
+npm install
+npm run build
 ```
 
 ## Configuration
 
-Configure your vault(s) via **environment variable** or **config file**.
+### Plugin
 
-### Env var (quick start)
+Plugin auto-discovers all your Obsidian vaults from Obsidian's own config. Open plugin settings to select which vaults to expose.
+
+### CLI
+
+Configure vault(s) via environment variable or config file.
 
 ```bash
 # Single vault
@@ -82,33 +78,40 @@ export OBSIDIAN_VAULT_PATHS=/Users/me/personal;/Users/me/work
 set OBSIDIAN_VAULT_PATHS=C:\Users\me\personal;C:\Users\me\work
 ```
 
-### Config file (`~/.config/obsidian-native-mcp/vaults.json`)
+Config file at `~/.config/obsidian-native-mcp/vaults.json`:
 
 ```json
 {
   "vaults": {
     "personal": "/Users/me/personal-notes",
-    "work": "/Users/me/work-vault",
-    "recipes": "/Users/me/cooking"
+    "work": "/Users/me/work-vault"
   }
 }
 ```
 
-Vault names are derived from directory names automatically (env var) or set explicitly (config file).
-
 ## Usage
 
-### Claude Desktop
+### Obsidian plugin
 
-Add to your `claude_desktop_config.json`:
-
-**Single vault:**
+After enabling the plugin, open its settings tab. You'll see a URL like `http://127.0.0.1:9789/sse`. Add it to your `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "obsidian-native-mcp": {
-      "command": "/path/to/obsidian-native-mcp",
+      "url": "http://127.0.0.1:9789/sse"
+    }
+  }
+}
+```
+
+### CLI
+
+```json
+{
+  "mcpServers": {
+    "obsidian-native-mcp": {
+      "command": "obsidian-native-mcp",
       "env": {
         "OBSIDIAN_VAULT_PATHS": "/Users/me/my-obsidian-vault"
       }
@@ -116,23 +119,6 @@ Add to your `claude_desktop_config.json`:
   }
 }
 ```
-
-**Multiple vaults:**
-
-```json
-{
-  "mcpServers": {
-    "obsidian-native-mcp": {
-      "command": "/path/to/obsidian-native-mcp",
-      "env": {
-        "OBSIDIAN_VAULT_PATHS": "/Users/me/personal;/Users/me/work"
-      }
-    }
-  }
-}
-```
-
-Now Claude can read, search, create, and modify your notes across all vaults. When a vault name is needed, use the directory name (e.g., `personal`, `work`).
 
 ## Tools
 
@@ -171,16 +157,20 @@ Prompts appear automatically in your MCP client's prompt selector.
 - [x] Full vault CRUD (list, read, create, append, patch, delete)
 - [x] Full-text search across vault
 - [x] Multi-vault support
-- [x] Cross-platform (macOS, Linux, Windows)
+- [x] Cross-platform (runs anywhere Node.js runs)
 - [x] Prompt templates from vault's Prompts folder
 - [x] Config file support (`~/.config/obsidian-native-mcp/vaults.json`)
+- [x] Obsidian community plugin with settings UI
+- [x] Vault auto-discovery from Obsidian config
+- [x] HTTP/SSE transport for plugin
+- [x] Two distribution methods (plugin + CLI)
 - [ ] Smart Connections-like semantic search (local embeddings)
 - [ ] Vault change watching (file system events)
-- [ ] S3/remote vault sync support
+- [ ] npm publish workflow
 
 ## Security
 
-obsidian-native-mcp runs locally on your machine and accesses only the vault paths you explicitly configure. No data is sent to external services. Communication with your AI client happens over local stdio — nothing touches the network.
+obsidian-native-mcp runs locally on your machine. The plugin exposes vaults over localhost only. The CLI communicates over local stdio. No data is sent to external services. Only vaults you explicitly select/configure are accessible.
 
 For security concerns, please open an issue or see [SECURITY.md](SECURITY.md).
 

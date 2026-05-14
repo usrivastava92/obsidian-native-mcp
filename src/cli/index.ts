@@ -1,6 +1,6 @@
-#!/usr/bin/env bun
-import { startMcpServer } from "./mcp/server";
-import { VaultRegistry } from "./utils/vaults";
+import { createServer } from "../mcp/server";
+import { StdioTransport } from "../mcp/stdio-transport";
+import { VaultRegistry } from "../utils/vaults";
 
 async function main() {
   const registry = new VaultRegistry();
@@ -11,7 +11,12 @@ async function main() {
   }
 
   console.error("obsidian-native-mcp server starting");
-  await startMcpServer(registry);
+
+  const server = createServer(registry);
+  const transport = new StdioTransport();
+
+  transport.onRequest(async (msg) => server.handleRequest(msg));
+  transport.start();
 }
 
 main().catch((err) => {

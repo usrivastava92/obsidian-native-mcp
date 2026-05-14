@@ -1,4 +1,5 @@
 import { readdirSync, statSync } from "fs";
+import { readFile } from "fs/promises";
 import { join } from "path";
 import type { PromptDefinition } from "../mcp/protocol";
 import type { VaultRegistry } from "../utils/vaults";
@@ -61,7 +62,7 @@ export class PromptHandler {
       if (!stat.isFile()) continue;
 
       try {
-        const content = await Bun.file(fullPath).text();
+        const content = await readFile(fullPath, "utf-8");
         const parsed = parseFrontmatter(content);
         const tags: string[] = parsed?.frontmatter?.tags || [];
 
@@ -89,13 +90,14 @@ export class PromptHandler {
   }> {
     const vaultPath = this.registry.resolve(vaultName);
     const promptPath = join(vaultPath, this.promptDir, name);
-    const bunFile = Bun.file(promptPath);
 
-    if (!(await bunFile.exists())) {
+    let content: string;
+    try {
+      content = await readFile(promptPath, "utf-8");
+    } catch {
       throw new Error(`Prompt not found: ${name}`);
     }
 
-    const content = await bunFile.text();
     const parsed = parseFrontmatter(content);
     const body = parsed?.body || content;
     const withoutFrontmatter = body.trim();

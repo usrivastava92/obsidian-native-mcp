@@ -1,4 +1,5 @@
-import { readdirSync, statSync, unlinkSync, mkdirSync } from "fs";
+import { readdirSync, statSync, unlinkSync, mkdirSync, existsSync } from "fs";
+import { readFile, writeFile, access } from "fs/promises";
 import { join, dirname, relative } from "path";
 
 export interface FileEntry {
@@ -9,10 +10,27 @@ export interface FileEntry {
   mtime?: Date;
 }
 
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function readTextFile(path: string): Promise<string> {
+  return readFile(path, "utf-8");
+}
+
+async function writeTextFile(path: string, content: string): Promise<void> {
+  await writeFile(path, content, "utf-8");
+}
+
 export function listFiles(vaultPath: string, directory?: string): FileEntry[] {
   const targetDir = directory ? join(vaultPath, directory) : vaultPath;
 
-  if (!Bun.file(targetDir).exists()) {
+  if (!existsSync(targetDir)) {
     throw new Error(`Directory not found: ${targetDir}`);
   }
 
@@ -37,14 +55,13 @@ export function listFiles(vaultPath: string, directory?: string): FileEntry[] {
   });
 }
 
-export async function readFile(
+export async function readFileHandler(
   vaultPath: string,
   filename: string,
 ): Promise<{ content: string; frontmatter?: Record<string, any> }> {
   const fullPath = join(vaultPath, filename);
-  const bunFile = Bun.file(fullPath);
 
-  if (!(await bunFile.exists())) {
+  if (!(await fileExists(fullPath))) {
     throw new Error(`File not found: ${filename}`);
   }
 
@@ -53,7 +70,7 @@ export async function readFile(
     throw new Error(`Not a file: ${filename}`);
   }
 
-  const content = await bunFile.text();
+  const content = await readTextFile(fullPath);
   const parsed = parseFrontmatter(content);
 
   return {
@@ -70,11 +87,11 @@ export async function createFile(
   const fullPath = join(vaultPath, filename);
   const dir = dirname(fullPath);
 
-  if (!Bun.file(dir).exists()) {
+  if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
 
-  await Bun.write(fullPath, content);
+  await writeTextFile(fullPath, content);
 }
 
 export async function appendFile(
@@ -85,23 +102,22 @@ export async function appendFile(
   const fullPath = join(vaultPath, filename);
   const dir = dirname(fullPath);
 
-  if (!Bun.file(dir).exists()) {
+  if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
 
-  const bunFile = Bun.file(fullPath);
   let existing = "";
-  if (await bunFile.exists()) {
-    existing = await bunFile.text();
+  if (await fileExists(fullPath)) {
+    existing = await readTextFile(fullPath);
   }
 
-  await Bun.write(fullPath, existing + content);
+  await writeTextFile(fullPath, existing + content);
 }
 
-export function deleteFile(vaultPath: string, filename: string): void {
+export function deleteFileHandler(vaultPath: string, filename: string): void {
   const fullPath = join(vaultPath, filename);
 
-  if (!Bun.file(fullPath).exists()) {
+  if (!existsSync(fullPath)) {
     throw new Error(`File not found: ${filename}`);
   }
 
@@ -122,13 +138,12 @@ export async function patchFile(
   },
 ): Promise<string> {
   const fullPath = join(vaultPath, filename);
-  const bunFile = Bun.file(fullPath);
 
-  if (!(await bunFile.exists())) {
+  if (!(await fileExists(fullPath))) {
     throw new Error(`File not found: ${filename}`);
   }
 
-  const fileContent = await bunFile.text();
+  const fileContent = await readTextFile(fullPath);
   let modified: string;
 
   if (targetType === "frontmatter") {
@@ -141,7 +156,7 @@ export async function patchFile(
     throw new Error(`Unsupported target type: ${targetType}`);
   }
 
-  await Bun.write(fullPath, modified);
+  await writeTextFile(fullPath, modified);
   return modified;
 }
 

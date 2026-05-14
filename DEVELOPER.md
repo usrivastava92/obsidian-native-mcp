@@ -4,66 +4,69 @@
 
 ```
 src/
-  index.ts              Entry point — reads config, starts server
+  cli/index.ts              CLI entry — reads config, starts stdio transport
+  plugin/
+    main.ts                 Obsidian plugin entry (extends Plugin)
+    settings.ts             Settings tab with vault picker + copy URL
   mcp/
-    protocol.ts         JSON-RPC 2.0 types + Content-Length framing
-    server.ts           MCP stdio server — message dispatch, tool/prompt routing
+    protocol.ts             JSON-RPC 2.0 types + Content-Length framing
+    transport.ts            Transport interface
+    stdio-transport.ts      Stdio transport (for CLI)
+    http-transport.ts       HTTP/SSE transport (for plugin)
+    server.ts               Transport-agnostic server — creates handlers + routes requests
   handlers/
-    tools.ts            Tool implementations (9 tools)
-    prompts.ts          Prompt directory reader + template parser
+    tools.ts                Tool implementations (9 tools)
+    prompts.ts              Prompt directory reader + template parser
   utils/
-    fs-utils.ts         Bun-native file I/O, frontmatter parsing, heading/block patching
-    search.ts           Recursive text search across .md files
-    vaults.ts           VaultRegistry — multi-vault config from env + config file
+    fs-utils.ts             File I/O, frontmatter parsing, heading/block patching
+    search.ts               Recursive text search across .md files
+    vaults.ts               VaultRegistry — config from env, file, Obsidian auto-discovery
 ```
 
 ### Key Design Decisions
 
-**Zero dependencies.** The MCP protocol (JSON-RPC 2.0 over stdio with Content-Length framing) is implemented from scratch in `protocol.ts`. No npm packages needed at runtime — only `@types/bun` and `typescript` for development.
+**Zero dependencies.** The MCP protocol (JSON-RPC 2.0 over stdio with Content-Length framing) is implemented from scratch. No npm packages needed at runtime — only Node.js stdlib.
 
-**Bun-native I/O.** Uses `Bun.file()`, `Bun.write()`, and `Bun.file().exists()` for all file operations. These are compiled into the binary by Bun's bundler — no `fs` overhead at runtime (except `readdirSync`/`statSync` for directory listing where Bun has no equivalent).
+**Node.js everywhere.** All I/O uses `fs` and `fs/promises` — runs on any platform Node.js supports. Obsidian plugin runs inside Obsidian's Electron. CLI runs standalone.
 
-**Direct filesystem access.** Unlike `obsidian-mcp-tools` which communicates via HTTP with the Local REST API plugin, this server reads/writes files directly. This means:
+**Two transports, shared logic.** The `server.ts` exports a `createServer()` factory that returns tool definitions and a `handleRequest()` function. The stdio and HTTP/SSE transports both use the same factory — only the I/O layer differs.
 
-- Obsidian doesn't need to be running
-- No API key management
-- Lower latency (no HTTP round-trip)
-- Works on any platform Obsidian supports
+**Direct filesystem access.** Unlike `obsidian-mcp-tools` which communicates via HTTP with the Local REST API plugin, this server reads/writes files directly.
 
-**Multi-vault first.** The `VaultRegistry` class supports both env var and config file configuration. Vault names are derived from directory basenames (env) or explicitly set (config file). All tools accept an optional `vault` parameter.
+**Multi-vault first.** The `VaultRegistry` supports env var, config file, and Obsidian auto-discovery.
 
 ## Development Workflow
 
 ```bash
 # Install dependencies
-bun install
+npm install
 
-# Run in development mode (watch + hot reload)
-bun run dev
+# Run CLI in dev mode (watch + hot reload)
+npm run dev
 
 # Type-check
-bun run check
+npm run check
 
-# Build binary for current platform
-bun run build
+# Lint + format
+npm run lint
+npm run format
 
-# Build for all platforms
-bun run build:linux
-bun run build:mac-arm64
-bun run build:mac-x64
-bun run build:windows
+# Build TS to dist/
+npm run build
 
-# Start (run from source)
-OBSIDIAN_VAULT_PATHS=/path/to/vault bun run start
+# Build plugin bundle for Obsidian
+npm run build:plugin
+
+# Run CLI from compiled JS
+npm run start
+
+# Test via env var
+OBSIDIAN_VAULT_PATHS=/path/to/vault node dist/cli/index.js
 ```
 
-### Testing
+### Testing the CLI
 
 ```bash
-# Build first
-bun run build:mac-arm64
-
-# Run the test script
 OBSIDIAN_VAULT_PATHS=/path/to/vault node --input-type=module -e '
 const msgs = [
   {jsonrpc:"2.0",id:1,method:"initialize",params:{}},
@@ -73,7 +76,7 @@ const msgs = [
 let input = "";
 for(const m of msgs){ const s = JSON.stringify(m); input += "Content-Length: "+s.length+"\r\n\r\n"+s; }
 const {spawn} = await import("child_process");
-const child = spawn("./dist/obsidian-native-mcp", [], {stdio:["pipe","pipe","pipe"]});
+const child = spawn("node", ["dist/cli/index.js"], {stdio:["pipe","pipe","pipe"]});
 let buf = "";
 child.stdout.on("data", c => buf += c.toString());
 child.on("close", () => {
@@ -93,6 +96,13 @@ setTimeout(() => process.exit(0), 2000);
 '
 ```
 
+### Testing the Plugin
+
+1. Build the plugin: `npm run build:plugin`
+2. Copy `dist/plugin/` to `<your-vault>/.obsidian/plugins/obsidian-native-mcp/`
+3. Reload Obsidian, enable the plugin in Community Plugins
+4. Open plugin settings to see discovered vaults
+
 ## Adding a New Tool
 
 1. Define the tool schema in `src/mcp/server.ts` — add to the `toolDefinitions` array
@@ -102,33 +112,38 @@ setTimeout(() => process.exit(0), 2000);
 ## Release Process
 
 ```bash
-# 1. Update version in package.json
-# 2. Build all platform binaries
-bun run build:linux
-bun run build:mac-arm64
-bun run build:mac-x64
-bun run build:windows
+# 1. Update version in package.json and manifest.json
+# 2. Build
+npm run build
+npm run build:plugin
 
-# 3. Create GitHub release
-gh release create v0.2.0 \
-  ./dist/obsidian-native-mcp-linux \
-  ./dist/obsidian-native-mcp-macos-arm64 \
-  ./dist/obsidian-native-mcp-macos-x64 \
-  ./dist/obsidian-native-mcp-windows.exe \
-  --title "v0.2.0" \
-  --notes "Release notes here"
-
-# 4. Publish to npm
+# 3. Publish to npm
 npm publish
+
+# 4. Create GitHub release
+gh release create v0.2.0 --title "v0.2.0" --generate-notes
+
+# 5. Submit plugin to Obsidian community plugin list
+#    https://github.com/obsidianmd/obsidian-releases
 ```
 
 ## Protocol Reference
 
-The server speaks the standard MCP protocol over stdio:
+The server speaks the standard MCP protocol over stdio (CLI) or HTTP/SSE (plugin):
+
+### Stdio
 
 ```
 Client → Server:  Content-Length: <N>\r\n\r\n<JSON-RPC body>
 Server → Client:  Content-Length: <N>\r\n\r\n<JSON-RPC body>
+```
+
+### HTTP/SSE
+
+```
+Client → Server:  GET /sse → SSE stream with endpoint event
+Client → Server:  POST /message?session_id=<id> → JSON-RPC request
+Server → Client:  SSE event "message" with JSON-RPC response
 ```
 
 ### Supported Methods
