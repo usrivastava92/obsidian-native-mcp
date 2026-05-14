@@ -4,7 +4,7 @@
   "description": "Zero-dependency MCP server for Obsidian vaults. Direct filesystem access — no Obsidian process or REST API plugin needed.",
   "license": "MIT",
   "bin": {
-    "obsidian-native-mcp": "./dist/cli/index.js"
+    "obsidian-native-mcp": "dist/cli/index.js"
   },
   "scripts": {
     "build": "tsc",
