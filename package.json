@@ -3,6 +3,10 @@
   "version": "0.2.0",
   "description": "Zero-dependency MCP server for Obsidian vaults. Direct filesystem access — no Obsidian process or REST API plugin needed.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usrivastava92/obsidian-native-mcp.git"
+  },
   "bin": {
     "obsidian-native-mcp": "dist/cli/index.js"
   },
