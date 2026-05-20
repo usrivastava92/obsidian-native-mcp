@@ -122,17 +122,24 @@ After enabling the plugin, open its settings tab. You'll see a URL like `http://
 
 ## Tools
 
-| Tool             | Description                                             |
-| ---------------- | ------------------------------------------------------- |
-| `list_vaults`    | List all configured vaults with paths                   |
-| `get_vault_info` | Stats per vault (file count, etc.)                      |
-| `list_files`     | List files/dirs in a vault directory                    |
-| `get_file`       | Read file content (markdown or json with frontmatter)   |
-| `create_file`    | Create or overwrite a file                              |
-| `append_to_file` | Append content to a file                                |
-| `patch_file`     | Patch by heading, block reference, or frontmatter field |
-| `delete_file`    | Delete a file                                           |
-| `search`         | Full-text search across markdown files                  |
+| Tool              | Description                                                         |
+| ----------------- | ------------------------------------------------------------------- |
+| `list_vaults`     | List all configured vaults with paths                               |
+| `get_vault_info`  | Stats per vault (file count, etc.)                                  |
+| `list_files`      | List files/dirs in a vault directory, optionally recursively        |
+| `search_files`    | Find files by exact name, substring, glob, or regex                 |
+| `get_file`        | Read file content (markdown or json with frontmatter)               |
+| `read_metadata`   | Read frontmatter, headings, tags, aliases, and file metadata        |
+| `create_file`     | Create or overwrite a file                                          |
+| `replace_file`    | Replace full file content with explicit create-if-missing semantics |
+| `append_to_file`  | Append content to a file                                            |
+| `patch_file`      | Patch or delete content by heading, block reference, or frontmatter |
+| `replace_section` | Replace a heading section body                                      |
+| `move_file`       | Move or rename a file and optionally update resolvable references   |
+| `delete_file`     | Delete a file or move it into the vault-local `.trash` directory    |
+| `get_links`       | Read backlinks, outlinks, or both                                   |
+| `bulk_patch`      | Apply a batch of patch operations, optionally atomically            |
+| `search`          | Full-text search across markdown files                              |
 
 All file tools accept an optional `vault` parameter. When only one vault is configured, it's inferred automatically.
 

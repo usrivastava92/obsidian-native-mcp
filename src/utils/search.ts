@@ -1,6 +1,7 @@
 import { readdirSync, statSync } from "fs";
 import { readFile } from "fs/promises";
-import { join, relative } from "path";
+import { join, relative, resolve } from "path";
+import { resolveVaultPath } from "./fs-utils";
 
 export interface SearchMatch {
   file: string;
@@ -16,7 +17,7 @@ export async function searchInVault(
   directory?: string,
   contextLength: number = 100,
 ): Promise<SearchMatch[]> {
-  const searchDir = directory ? join(vaultPath, directory) : vaultPath;
+  const searchDir = directory ? resolveVaultPath(vaultPath, directory) : resolve(vaultPath);
   const results: SearchMatch[] = [];
   const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
 

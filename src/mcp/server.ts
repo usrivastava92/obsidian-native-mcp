@@ -58,6 +58,10 @@ export function createServer(registry: VaultRegistry): ServerInstance {
             type: "string",
             description: "Optional subdirectory path relative to vault root",
           },
+          recursive: {
+            type: "boolean",
+            description: "Whether to list entries recursively",
+          },
         },
       },
     },
@@ -127,7 +131,7 @@ export function createServer(registry: VaultRegistry): ServerInstance {
           filename: { type: "string" },
           operation: {
             type: "string",
-            enum: ["append", "prepend", "replace"],
+            enum: ["append", "prepend", "replace", "delete"],
           },
           targetType: {
             type: "string",
@@ -141,8 +145,9 @@ export function createServer(registry: VaultRegistry): ServerInstance {
           },
           targetDelimiter: { type: "string", default: "::" },
           trimTargetWhitespace: { type: "boolean", default: true },
+          dry_run: { type: "boolean", description: "Preview the patched content without writing" },
         },
-        required: ["filename", "operation", "targetType", "target", "content"],
+        required: ["filename", "operation", "targetType", "target"],
       },
     },
     {
@@ -156,8 +161,156 @@ export function createServer(registry: VaultRegistry): ServerInstance {
             type: "string",
             description: "Path to the file relative to vault root",
           },
+          trash: {
+            type: "boolean",
+            description:
+              "Move the file into the vault-local .trash directory instead of deleting it",
+          },
+          dry_run: {
+            type: "boolean",
+            description: "Preview deletion without mutating the vault",
+          },
         },
         required: ["filename"],
+      },
+    },
+    {
+      name: "move_file",
+      description: "Move or rename a file within your vault and optionally rewrite references.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          ...vaultParam,
+          from: { type: "string", description: "Existing file path relative to vault root" },
+          to: { type: "string", description: "New file path relative to vault root" },
+          update_links: {
+            type: "boolean",
+            description: "Rewrite resolvable links to the moved file",
+          },
+          dry_run: { type: "boolean", description: "Preview the move without writing changes" },
+        },
+        required: ["from", "to"],
+      },
+    },
+    {
+      name: "replace_file",
+      description: "Replace the full content of a file with explicit semantics.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          ...vaultParam,
+          filename: { type: "string", description: "Path to the file relative to vault root" },
+          content: { type: "string", description: "Replacement file content" },
+          create_if_missing: {
+            type: "boolean",
+            description: "Create the file if it does not already exist",
+          },
+          dry_run: { type: "boolean", description: "Preview replacement without writing changes" },
+        },
+        required: ["filename", "content"],
+      },
+    },
+    {
+      name: "replace_section",
+      description: "Replace the body of a heading section while preserving the rest of the file.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          ...vaultParam,
+          filename: { type: "string" },
+          heading: {
+            type: "string",
+            description: "Heading path to replace, optionally nested with ::",
+          },
+          content: { type: "string", description: "Replacement section body" },
+          create_if_missing: {
+            type: "boolean",
+            description: "Create the section when it is absent",
+          },
+          targetDelimiter: { type: "string", default: "::" },
+          dry_run: { type: "boolean", description: "Preview the replacement without writing" },
+        },
+        required: ["filename", "heading", "content"],
+      },
+    },
+    {
+      name: "search_files",
+      description: "Find files by path, basename, or basename without extension.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          ...vaultParam,
+          query: { type: "string", description: "Path or filename query" },
+          directory: { type: "string", description: "Optional directory to scope the search" },
+          mode: {
+            type: "string",
+            enum: ["exact", "substring", "glob", "regex"],
+            description: "Filename matching mode",
+          },
+        },
+        required: ["query"],
+      },
+    },
+    {
+      name: "read_metadata",
+      description: "Read structured metadata such as frontmatter, headings, tags, and aliases.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          ...vaultParam,
+          filename: { type: "string", description: "Path to the file relative to vault root" },
+        },
+        required: ["filename"],
+      },
+    },
+    {
+      name: "get_links",
+      description: "Read backlinks, outlinks, or both for a note.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          ...vaultParam,
+          filename: { type: "string", description: "Path to the file relative to vault root" },
+          direction: {
+            type: "string",
+            enum: ["backlinks", "outlinks", "both"],
+            description: "Which relationship direction to return",
+          },
+        },
+        required: ["filename"],
+      },
+    },
+    {
+      name: "bulk_patch",
+      description: "Apply a batch of patch_file-style operations, optionally atomically.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          ...vaultParam,
+          operations: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                filename: { type: "string" },
+                operation: { type: "string", enum: ["append", "prepend", "replace", "delete"] },
+                targetType: { type: "string", enum: ["heading", "block", "frontmatter"] },
+                target: { type: "string" },
+                content: { type: "string" },
+                contentType: { type: "string", enum: ["text/markdown", "application/json"] },
+                targetDelimiter: { type: "string" },
+                trimTargetWhitespace: { type: "boolean" },
+              },
+              required: ["filename", "operation", "targetType", "target"],
+            },
+          },
+          atomic: {
+            type: "boolean",
+            description: "Apply all patches or none when validation fails",
+          },
+          dry_run: { type: "boolean", description: "Preview the patch results without writing" },
+        },
+        required: ["operations"],
       },
     },
     {
