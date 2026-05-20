@@ -1,10 +1,17 @@
 import {
+  bulkPatch,
   listFiles,
+  moveFile,
+  readMetadata,
   readFileHandler,
   createFile,
   appendFile,
   deleteFileHandler,
   patchFile,
+  replaceFile,
+  replaceSection,
+  searchFiles,
+  getLinks,
 } from "../utils/fs-utils";
 import { searchInVault } from "../utils/search";
 import type { VaultRegistry } from "../utils/vaults";
@@ -29,6 +36,13 @@ export class VaultFileHandler {
       append_to_file: this.handleAppendFile.bind(this),
       patch_file: this.handlePatchFile.bind(this),
       delete_file: this.handleDeleteFile.bind(this),
+      move_file: this.handleMoveFile.bind(this),
+      replace_file: this.handleReplaceFile.bind(this),
+      replace_section: this.handleReplaceSection.bind(this),
+      search_files: this.handleSearchFiles.bind(this),
+      read_metadata: this.handleReadMetadata.bind(this),
+      get_links: this.handleGetLinks.bind(this),
+      bulk_patch: this.handleBulkPatch.bind(this),
       search: this.handleSearch.bind(this),
     };
   }
@@ -57,7 +71,7 @@ export class VaultFileHandler {
 
   private async handleListFiles(args: Record<string, any>): Promise<ToolResult> {
     const vaultPath = this.resolveVault(args);
-    const entries = listFiles(vaultPath, args.directory);
+    const entries = listFiles(vaultPath, args.directory, args.recursive);
     return {
       content: [{ type: "text", text: JSON.stringify(entries, null, 2) }],
     };
@@ -118,21 +132,94 @@ export class VaultFileHandler {
         contentType: args.contentType,
         targetDelimiter: args.targetDelimiter,
         trimTargetWhitespace: args.trimTargetWhitespace,
+        dryRun: args.dry_run,
       },
     );
     return {
-      content: [
-        { type: "text", text: "File patched successfully" },
-        { type: "text", text: result },
-      ],
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
   }
 
   private async handleDeleteFile(args: Record<string, any>): Promise<ToolResult> {
     const vaultPath = this.resolveVault(args);
-    deleteFileHandler(vaultPath, args.filename);
+    const result = await deleteFileHandler(vaultPath, args.filename, {
+      trash: args.trash,
+      dryRun: args.dry_run,
+    });
     return {
-      content: [{ type: "text", text: "File deleted successfully" }],
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  private async handleMoveFile(args: Record<string, any>): Promise<ToolResult> {
+    const vaultPath = this.resolveVault(args);
+    const result = await moveFile(vaultPath, args.from, args.to, {
+      updateLinks: args.update_links,
+      dryRun: args.dry_run,
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  private async handleReplaceFile(args: Record<string, any>): Promise<ToolResult> {
+    const vaultPath = this.resolveVault(args);
+    const result = await replaceFile(vaultPath, args.filename, args.content, {
+      createIfMissing: args.create_if_missing,
+      dryRun: args.dry_run,
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  private async handleReplaceSection(args: Record<string, any>): Promise<ToolResult> {
+    const vaultPath = this.resolveVault(args);
+    const result = await replaceSection(vaultPath, args.filename, args.heading, args.content, {
+      createIfMissing: args.create_if_missing,
+      dryRun: args.dry_run,
+      targetDelimiter: args.targetDelimiter,
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  private async handleSearchFiles(args: Record<string, any>): Promise<ToolResult> {
+    const vaultPath = this.resolveVault(args);
+    const result = await searchFiles(vaultPath, args.query, {
+      directory: args.directory,
+      mode: args.mode,
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  private async handleReadMetadata(args: Record<string, any>): Promise<ToolResult> {
+    const vaultPath = this.resolveVault(args);
+    const result = await readMetadata(vaultPath, args.filename);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  private async handleGetLinks(args: Record<string, any>): Promise<ToolResult> {
+    const vaultPath = this.resolveVault(args);
+    const result = await getLinks(vaultPath, args.filename, args.direction || "both");
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+
+  private async handleBulkPatch(args: Record<string, any>): Promise<ToolResult> {
+    const vaultPath = this.resolveVault(args);
+    const result = await bulkPatch(vaultPath, args.operations || [], {
+      atomic: args.atomic,
+      dryRun: args.dry_run,
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
   }
 

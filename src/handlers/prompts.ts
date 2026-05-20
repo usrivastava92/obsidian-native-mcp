@@ -2,36 +2,8 @@ import { readdirSync, statSync } from "fs";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import type { PromptDefinition } from "../mcp/protocol";
+import { parseFrontmatter } from "../utils/markdown";
 import type { VaultRegistry } from "../utils/vaults";
-
-interface Frontmatter {
-  [key: string]: any;
-}
-
-function parseFrontmatter(content: string): { frontmatter: Frontmatter; body: string } | null {
-  if (!content.startsWith("---")) return null;
-  const endIndex = content.indexOf("---", 3);
-  if (endIndex === -1) return null;
-  const raw = content.slice(3, endIndex).trim();
-  const body = content.slice(endIndex + 3).trim();
-  const frontmatter: Frontmatter = {};
-  for (const line of raw.split("\n")) {
-    const colonIndex = line.indexOf(":");
-    if (colonIndex === -1) continue;
-    const key = line.slice(0, colonIndex).trim();
-    let value: any = line.slice(colonIndex + 1).trim();
-    if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
-    else if (value.startsWith("[") && value.endsWith("]")) {
-      value = value
-        .slice(1, -1)
-        .split(",")
-        .map((s: string) => s.trim().replace(/^["']|["']$/g, ""))
-        .filter(Boolean);
-    }
-    frontmatter[key] = value;
-  }
-  return { frontmatter, body };
-}
 
 export class PromptHandler {
   private registry: VaultRegistry;
