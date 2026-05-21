@@ -2,8 +2,8 @@
   "compilerOptions": {
     "lib": ["ES2022"],
     "target": "ES2022",
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "outDir": "dist",
     "rootDir": "src",
     "types": ["node"],
@@ -14,7 +14,9 @@
     "noUnusedParameters": false,
     "esModuleInterop": true,
     "sourceMap": true,
-    "declaration": false
+    "declaration": false,
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true
   },
   "include": ["src"]
 }

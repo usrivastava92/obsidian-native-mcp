@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "description": "Zero-dependency MCP server for Obsidian vaults. Direct filesystem access — no Obsidian process or REST API plugin needed.",
   "license": "MIT",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/usrivastava92/obsidian-native-mcp.git"
@@ -15,7 +16,8 @@
     "build:plugin": "node scripts/build-plugin.mjs",
     "dev": "tsx watch src/cli/index.ts",
     "start": "node dist/cli/index.js",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "tsx --test tests/**/*.test.ts",
+    "test:coverage": "c8 --reporter=text --reporter=lcov --check-coverage --lines=85 --branches=80 --include='src/markdown/**' --include='src/fs/**' --include='src/cache/**' --include='src/mcp/**' --include='src/tools/**' tsx --test tests/**/*.test.ts",
     "check": "tsc --noEmit",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
@@ -33,12 +35,26 @@
       "prettier --write"
     ]
   },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "mdast-util-from-markdown": "^2.0.2",
+    "mdast-util-frontmatter": "^2.0.1",
+    "mdast-util-gfm": "^3.0.0",
+    "mdast-util-to-markdown": "^2.1.2",
+    "micromark-extension-frontmatter": "^2.0.0",
+    "micromark-extension-gfm": "^3.0.0",
+    "picomatch": "^4.0.2",
+    "yaml": "^2.6.0"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
+    "@types/mdast": "^4.0.4",
     "@types/node": "^22.0.0",
+    "@types/picomatch": "^4.0.0",
+    "c8": "^10.1.3",
     "esbuild": "^0.25.0",
     "eslint": "^10.3.0",
     "husky": "^9.1.7",

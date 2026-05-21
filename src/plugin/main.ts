@@ -1,115 +1,133 @@
-import { Plugin } from "obsidian";
-import { HttpTransport } from "../mcp/http-transport";
-import { createServer } from "../mcp/server";
-import { createLogger, formatError } from "../utils/log";
-import { VaultRegistry } from "../utils/vaults";
-import { NativeMcpSettingTab } from "./settings";
+/**
+ * Obsidian plugin entry — boots the HTTP/SSE MCP server, exposes settings UI.
+ */
 
-const log = createLogger("plugin");
+import { Plugin, Notice } from "obsidian";
+import { VaultRegistry } from "../vault/registry.js";
+import { Permissions, DEFAULT_PERMISSIONS, type PermissionConfig } from "../vault/permissions.js";
+import { LRUFileCache } from "../cache/file-cache.js";
+import { AuditLog } from "../audit/log.js";
+import { ToolRegistry } from "../handlers/registry.js";
+import { registerAll } from "../tools/index.js";
+import { createServer } from "../mcp/server.js";
+import { HttpTransport } from "../mcp/http.js";
+import { FsPromptsProvider } from "../prompts/provider.js";
+import { SettingsTab } from "./settings.js";
 
-interface PluginSettings {
-  selectedVaults: string[];
+export interface PluginSettings {
+  port: number;
+  bearerToken: string | null; // null → auto-generate at boot
+  readOnly: boolean;
+  toolToggles: Record<string, boolean>;
+  allowedOrigins: string[] | null; // null → defaults
+  enabledVaults: string[]; // vault names to expose
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
-  selectedVaults: [],
+  port: 9789,
+  bearerToken: null,
+  readOnly: false,
+  toolToggles: {},
+  allowedOrigins: null,
+  enabledVaults: [],
 };
 
-export default class NativeMcpPlugin extends Plugin {
+export default class ObsidianNativeMcpPlugin extends Plugin {
+  settings: PluginSettings = DEFAULT_SETTINGS;
   private transport: HttpTransport | null = null;
-  private settings: PluginSettings = DEFAULT_SETTINGS;
-  private registry = new VaultRegistry();
+  private serverUrl: string | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
-
-    const allVaults = VaultRegistry.discoverFromObsidian();
-    log.info("plugin loading", {
-      discoveredVaultCount: allVaults.length,
-      selectedVaultCount: this.settings.selectedVaults.length,
-    });
-
-    if (this.settings.selectedVaults.length > 0) {
-      const selected = allVaults.filter((v) => this.settings.selectedVaults.includes(v.name));
-      if (selected.length > 0) {
-        this.registry.configure(selected);
-      }
-    }
-
-    if (this.registry.list().length > 0) {
-      await this.startServer();
-    } else {
-      log.warn("plugin started without active vaults", {
-        hint: "Select at least one vault in plugin settings",
-      });
-    }
-
-    this.addSettingTab(new NativeMcpSettingTab(this.app, this));
+    this.addSettingTab(new SettingsTab(this.app, this));
+    await this.startServer();
   }
 
-  async startServer(): Promise<void> {
-    this.transport?.close();
-
-    const vaults = this.registry.list();
-    log.info("starting plugin transport", { vaultCount: vaults.length });
-
-    const server = createServer(this.registry);
-    this.transport = new HttpTransport();
-    this.transport.onRequest(async (msg) => server.handleRequest(msg));
-    try {
-      await this.transport.start();
-    } catch (err) {
-      log.error("failed to start plugin transport", { error: formatError(err) });
-      throw err;
-    }
-  }
-
-  restartServer(): void {
-    void this.startServer().catch((err) => {
-      log.error("failed to restart plugin transport", { error: formatError(err) });
-    });
-  }
-
-  getServerUrl(): string | null {
-    return this.transport?.url ?? null;
-  }
-
-  getRegistry(): VaultRegistry {
-    return this.registry;
+  async onunload(): Promise<void> {
+    await this.stopServer();
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const data = (await this.loadData()) as Partial<PluginSettings> | null;
+    this.settings = { ...DEFAULT_SETTINGS, ...(data ?? {}) };
   }
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
   }
 
-  getSettings(): PluginSettings {
-    return this.settings;
+  getServerUrl(): string | null {
+    return this.serverUrl;
   }
 
-  async updateSelectedVaults(names: string[]): Promise<void> {
-    this.settings.selectedVaults = names;
+  async restartServer(): Promise<void> {
+    await this.stopServer();
+    await this.startServer();
+  }
+
+  async rotateToken(): Promise<void> {
+    this.settings.bearerToken = null; // force regeneration
     await this.saveSettings();
+    await this.restartServer();
+    new Notice("MCP token rotated.");
+  }
 
-    const allVaults = VaultRegistry.discoverFromObsidian();
-    const selected = allVaults.filter((v) => names.includes(v.name));
-    this.registry.configure(selected);
-    log.info("updated selected vaults", { selectedVaultCount: selected.length });
-
-    if (selected.length > 0) {
-      await this.startServer();
-    } else {
-      this.transport?.close();
-      this.transport = null;
-      log.warn("stopped plugin transport because no vaults are selected");
+  private async startServer(): Promise<void> {
+    // Discover vaults from Obsidian + filter by enabled list.
+    const registry = await VaultRegistry.discover({ skipEnv: true, skipConfigFile: true });
+    const enabled = new Set(this.settings.enabledVaults);
+    const filtered =
+      enabled.size === 0 ? registry.list() : registry.list().filter((v) => enabled.has(v.name));
+    if (filtered.length === 0) {
+      new Notice("Obsidian Native MCP: no vaults enabled.");
+      return;
+    }
+    const effectiveRegistry = new VaultRegistry(filtered);
+    const permConfig: PermissionConfig = {
+      ...DEFAULT_PERMISSIONS,
+      readOnly: this.settings.readOnly,
+      tools: { ...DEFAULT_PERMISSIONS.tools, ...this.settings.toolToggles },
+    };
+    const perms = new Permissions(permConfig);
+    const cache = new LRUFileCache();
+    const audit = new AuditLog(filtered[0].root);
+    const toolReg = new ToolRegistry();
+    registerAll(toolReg);
+    const prompts = new FsPromptsProvider(effectiveRegistry);
+    const handle = createServer({
+      version: this.manifest.version,
+      registry: effectiveRegistry,
+      perms,
+      cache,
+      audit,
+      tools: toolReg,
+      promptsProvider: prompts,
+    });
+    this.transport = new HttpTransport({
+      port: this.settings.port,
+      bearerToken: this.settings.bearerToken ?? undefined,
+      allowedOrigins: this.settings.allowedOrigins ?? undefined,
+      version: this.manifest.version,
+      vaultCount: filtered.length,
+      readOnly: this.settings.readOnly,
+    });
+    await this.transport.start((req, ctx) => handle.handleRequest(req, ctx.clientId));
+    const addr = this.transport.getAddress();
+    const token = this.transport.getBearerToken();
+    if (this.settings.bearerToken !== token) {
+      this.settings.bearerToken = token;
+      await this.saveSettings();
+    }
+    if (addr) {
+      this.serverUrl = `http://${addr.host}:${addr.port}/sse?token=${encodeURIComponent(token)}`;
     }
   }
 
-  onunload(): void {
-    this.transport?.close();
-    log.info("plugin unloaded");
+  private async stopServer(): Promise<void> {
+    if (this.transport) {
+      await this.transport.stop();
+      this.transport = null;
+      this.serverUrl = null;
+    }
   }
 }

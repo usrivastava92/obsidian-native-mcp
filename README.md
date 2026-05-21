@@ -2,36 +2,37 @@
 
 # Obsidian Native MCP
 
-**Zero-dependency MCP server for Obsidian vaults**  
-Direct filesystem access — no Obsidian process, no REST API plugin required.
+**LLM-optimized MCP server for Obsidian vaults**
+Surgical edits, hash-based concurrency safety, no whole-file rewrites.
 
 [![Build](https://img.shields.io/github/actions/workflow/status/usrivastava92/obsidian-native-mcp/ci.yml?branch=main&label=CI&logo=github)](https://github.com/usrivastava92/obsidian-native-mcp/actions)
 [![Release](https://img.shields.io/github/v/release/usrivastava92/obsidian-native-mcp?logo=semanticrelease)](https://github.com/usrivastava92/obsidian-native-mcp/releases)
 [![npm](https://img.shields.io/npm/v/obsidian-native-mcp?logo=npm)](https://www.npmjs.com/package/obsidian-native-mcp)
-[![npm downloads](https://img.shields.io/npm/dm/obsidian-native-mcp?logo=npm)](https://www.npmjs.com/package/obsidian-native-mcp)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
 
 </div>
 
-Obsidian Native MCP is a [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI assistants (Claude Desktop, etc.) direct, safe access to your Obsidian vaults.
+A [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI assistants (Claude Desktop, Cursor, Rovo Dev, etc.) direct, safe, **context-efficient** access to your Obsidian vaults.
 
 **Two ways to use it:**
 
-- **Obsidian plugin** (recommended) — 1-click install, auto-discovers vaults, settings UI, runs inside Obsidian
-- **CLI** — standalone, works without Obsidian running, configured via env var or config file
+- **Obsidian plugin** — 1-click install, auto-discovers vaults, settings UI for per-tool toggles, runs inside Obsidian over HTTP/SSE with a bearer token.
+- **CLI** — standalone Node binary, configured via env var or config file, speaks JSON-RPC over stdio with Content-Length framing.
 
-**Why Obsidian Native MCP over other solutions?**
+## Why Obsidian Native MCP
 
-| Feature            | Obsidian Native MCP                    | obsidian-mcp-tools (archived)             |
-| ------------------ | -------------------------------------- | ----------------------------------------- |
-| Obsidian required? | **Plugin: no. CLI: no.**               | Yes — must be running with Local REST API |
-| Dependencies       | **Zero** — uses only Node.js stdlib    | MCP SDK, arktype, zod, radash, turndown…  |
-| Distribution       | Obsidian plugin + npm CLI              | Bun-compiled binary                       |
-| Multi-vault        | **Built-in** — one server, many vaults | No                                        |
-| Cross-platform     | **1 codebase, runs everywhere (WORA)** | Platform-specific binaries                |
-| File patching      | Headings, blocks, frontmatter          | Via REST API                              |
-| Setup effort       | Plugin: 1 click. CLI: one command.     | Manual download + config                  |
+The defining design goal is **minimize how many bytes the LLM has to push around per edit.** Every read returns content **plus cryptographic hashes**; every write declares the precondition hash it expects. The result: most edits become tiny `str_replace`s or unified-diff patches instead of full file rewrites.
+
+| Feature                  | Obsidian Native MCP                                               | Typical Obsidian MCP server          |
+| ------------------------ | ----------------------------------------------------------------- | ------------------------------------ |
+| **Edit model**           | `str_replace`, `apply_patch`, `apply_edits` — surgical by default | Read whole file → write whole file   |
+| **Concurrency safety**   | Cryptographic preconditions (`expected_*_hash`) on every write    | None — silent clobbering             |
+| **Structural awareness** | mdast-AST: code-fenced "headings" never treated as headings       | Regex hacks that corrupt code blocks |
+| **Frontmatter**          | Real YAML parser with nested key paths                            | Hand-rolled line matching            |
+| **Atomicity**            | Multi-file `bulk.apply` with rollback                             | None                                 |
+| **Permissions**          | Read-only mode + per-tool toggle + per-vault subdir allow/deny    | All-or-nothing                       |
+| **Audit trail**          | JSONL log with content hashes before/after every mutation         | None                                 |
+| **Multi-vault**          | First-class                                                       | Usually one vault                    |
 
 ## Installation
 
@@ -39,8 +40,8 @@ Obsidian Native MCP is a [Model Context Protocol](https://modelcontextprotocol.i
 
 1. Open Obsidian → Settings → Community Plugins → Browse
 2. Search for "Obsidian Native MCP" and install
-3. Enable the plugin in Community Plugins list
-4. Go to plugin settings → toggle which vaults to expose → copy the MCP URL
+3. Enable in Community Plugins
+4. Open plugin settings: select which vaults to expose, optionally toggle per-tool permissions, copy the MCP URL
 
 ### CLI (standalone)
 
@@ -61,11 +62,11 @@ npm run build
 
 ### Plugin
 
-Plugin auto-discovers all your Obsidian vaults from Obsidian's own config. Open plugin settings to select which vaults to expose.
+Auto-discovers all your Obsidian vaults from Obsidian's own config. Pick which to expose in plugin settings. Plugin also surfaces a bearer token and the MCP URL.
 
 ### CLI
 
-Configure vault(s) via environment variable or config file.
+Either an env var or a config file.
 
 ```bash
 # Single vault
@@ -73,9 +74,6 @@ export OBSIDIAN_VAULT_PATHS=/Users/me/my-obsidian-vault
 
 # Multiple vaults (semicolons on all platforms)
 export OBSIDIAN_VAULT_PATHS=/Users/me/personal;/Users/me/work
-
-# Windows
-set OBSIDIAN_VAULT_PATHS=C:\Users\me\personal;C:\Users\me\work
 ```
 
 Config file at `~/.config/obsidian-native-mcp/vaults.json`:
@@ -89,17 +87,25 @@ Config file at `~/.config/obsidian-native-mcp/vaults.json`:
 }
 ```
 
+Optional flags:
+
+```bash
+obsidian-native-mcp --read-only            # all write tools disabled
+obsidian-native-mcp --vault notes=/path    # ad-hoc named vault
+obsidian-native-mcp --config ./my.json     # explicit config file
+```
+
 ## Usage
 
 ### Obsidian plugin
 
-After enabling the plugin, open its settings tab. You'll see a URL like `http://127.0.0.1:9789/sse`. Add it to your `claude_desktop_config.json`:
+Add the URL from plugin settings to your `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "obsidian-native-mcp": {
-      "url": "http://127.0.0.1:9789/sse"
+      "url": "http://127.0.0.1:9789/sse?token=YOUR_TOKEN"
     }
   }
 }
@@ -122,64 +128,121 @@ After enabling the plugin, open its settings tab. You'll see a URL like `http://
 
 ## Tools
 
-| Tool              | Description                                                         |
-| ----------------- | ------------------------------------------------------------------- |
-| `list_vaults`     | List all configured vaults with paths                               |
-| `get_vault_info`  | Stats per vault (file count, etc.)                                  |
-| `list_files`      | List files/dirs in a vault directory, optionally recursively        |
-| `search_files`    | Find files by exact name, substring, glob, or regex                 |
-| `get_file`        | Read file content (markdown or json with frontmatter)               |
-| `read_metadata`   | Read frontmatter, headings, tags, aliases, and file metadata        |
-| `create_file`     | Create or overwrite a file                                          |
-| `replace_file`    | Replace full file content with explicit create-if-missing semantics |
-| `append_to_file`  | Append content to a file                                            |
-| `patch_file`      | Patch or delete content by heading, block reference, or frontmatter |
-| `replace_section` | Replace a heading section body                                      |
-| `move_file`       | Move or rename a file and optionally update resolvable references   |
-| `delete_file`     | Delete a file or move it into the vault-local `.trash` directory    |
-| `get_links`       | Read backlinks, outlinks, or both                                   |
-| `bulk_patch`      | Apply a batch of patch operations, optionally atomically            |
-| `search`          | Full-text search across markdown files                              |
+All tools accept an optional `vault` parameter; with a single vault configured, it's inferred. Every read returns hashes used by writes as preconditions.
 
-All file tools accept an optional `vault` parameter. When only one vault is configured, it's inferred automatically.
+### Read tools
+
+| Tool              | What it returns                                  | Notes                                            |
+| ----------------- | ------------------------------------------------ | ------------------------------------------------ |
+| `vault.list`      | All configured vaults                            | —                                                |
+| `vault.info`      | Stats per vault                                  | —                                                |
+| `file.list`       | Paged file listing                               | `recursive`, `pattern` (glob), `limit`, `offset` |
+| `file.find`       | Find files by name                               | exact / substring / glob / regex                 |
+| `file.read`       | Full file content + `contentHash` + `totalLines` | Use freely — guidelines/AGENTS.md/etc.           |
+| `file.read_range` | Line range + `rangeHash`                         | Cheaper for big files                            |
+| `outline`         | Heading skeleton + `sectionHash` per heading     | Sub-KB even for 5000-line files                  |
+| `heading.find`    | All matches (line, level, `sectionHash`)         | Returns all — caller disambiguates               |
+| `block.find`      | Block ref location + `blockHash`                 | Structural-type aware (list/table/paragraph)     |
+| `frontmatter.get` | Whole frontmatter or single nested key           | YAML-aware                                       |
+| `tags.list`       | Tags from frontmatter + body                     | Code-fence aware                                 |
+| `links.get`       | Outlinks, backlinks, or both                     | Typed: wiki/embed/header/block/markdown          |
+| `metadata.read`   | Frontmatter + headings + tags + links + hashes   | One-shot context dump                            |
+| `search.content`  | Paged full-text matches with per-line hashes     | DSL: `tag:`, `path:`, `\"phrase\"`, AND/OR/NOT   |
+
+### Write tools — surgical primaries
+
+| Tool          | Shape                                                        | Why                                                              |
+| ------------- | ------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `str_replace` | `{file, find, replace, occurrence?, expected_content_hash?}` | The default editing verb — quote what you see                    |
+| `apply_patch` | Unified diff                                                 | Multi-hunk edits in one shot; context lines act as preconditions |
+| `apply_edits` | `[{find, replace, occurrence?}, ...]`                        | Multi-edit, atomic per file                                      |
+
+### Write tools — structural (when you have the address)
+
+| Tool                   | Notes                                                       |
+| ---------------------- | ----------------------------------------------------------- |
+| `heading.replace_body` | Requires `expected_section_hash`                            |
+| `heading.rename`       | Optionally update wiki-link references                      |
+| `block.replace`        | Requires `expected_block_hash`; preserves list/table prefix |
+| `block.rename`         | Renames a `^id` and updates references                      |
+| `frontmatter.set`      | Nested key path; YAML-safe round-trip                       |
+| `frontmatter.delete`   | Nested key path                                             |
+| `lines.replace`        | Requires `expected_range_hash`                              |
+| `lines.insert`         | Insert at line N                                            |
+
+### Write tools — whole-file & metadata
+
+| Tool           | Notes                                                                       |
+| -------------- | --------------------------------------------------------------------------- |
+| `file.create`  | Create-only — errors if file exists                                         |
+| `file.replace` | Whole-file rewrite — heavy, requires `expected_content_hash`                |
+| `file.append`  | Cheap, no read needed                                                       |
+| `file.move`    | Default `on_conflict: error`; alternatives: `overwrite`, `rename`           |
+| `file.delete`  | Defaults to `.obsidian/trash`; hard delete requires `expected_content_hash` |
+
+### Power & batch
+
+| Tool            | Notes                                                                     |
+| --------------- | ------------------------------------------------------------------------- |
+| `bulk.apply`    | Multi-file, multi-op batch. `atomic: true` → snapshot + rollback on error |
+| `regex.replace` | Two-step: server returns proposal token + diff → caller confirms          |
+| `file.diff`     | Diff between two `contentHash` versions (when cache has them)             |
 
 ### Prompts
 
-Place markdown files in a `Prompts/` folder in any vault, tagged with `mcp-tools-prompt` in frontmatter:
+Place markdown in any vault's `Prompts/` folder with `mcp-tools-prompt` in the frontmatter; Templater-style `<% tp.mcpTools.prompt(name, hint) %>` placeholders become MCP prompt arguments automatically.
 
-```markdown
----
-tags: [mcp-tools-prompt]
-description: Summarize the daily note
----
+## Concurrency safety
 
-Summarize what happened on <% tp.mcpTools.prompt("date", "Date to summarize") %>.
+Every read returns one or more hashes. Every write that operates on an existing range requires the matching `expected_*_hash`. If the file changed underneath you (a human edit in Obsidian, a parallel tool call, etc.), the write returns:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "STALE_PRECONDITION",
+    "current_content_hash": "sha256:…",
+    "current_section_hash": "sha256:…"
+  }
+}
 ```
 
-Prompts appear automatically in your MCP client's prompt selector.
+The model refreshes from the new hash and retries. No silent clobbering.
 
-## Roadmap
+## Permissions
 
-- [x] Zero-dependency MCP protocol implementation
-- [x] Full vault CRUD (list, read, create, append, patch, delete)
-- [x] Full-text search across vault
-- [x] Multi-vault support
-- [x] Cross-platform (runs anywhere Node.js runs)
-- [x] Prompt templates from vault's Prompts folder
-- [x] Config file support (`~/.config/obsidian-native-mcp/vaults.json`)
-- [x] Obsidian community plugin with settings UI
-- [x] Vault auto-discovery from Obsidian config
-- [x] HTTP/SSE transport for plugin
-- [x] Two distribution methods (plugin + CLI)
-- [ ] Smart Connections-like semantic search (local embeddings)
-- [ ] Vault change watching (file system events)
-- [ ] npm publish workflow
+- **Read-only mode** — plugin toggle or CLI `--read-only` flag disables every write tool.
+- **Per-tool toggle** — disable individual tools (e.g., turn off `file.delete` for less-trusted clients).
+- **Per-vault subdir allow/deny** — limit a client to a vault subtree.
+
+## Audit log
+
+Every mutating call appends one JSONL line to `<vault>/.obsidian/plugins/obsidian-native-mcp/audit.log`:
+
+```json
+{
+  "ts": "2026-05-21T13:00:00Z",
+  "tool": "str_replace",
+  "vault": "notes",
+  "file": "Daily/2026-05-21.md",
+  "args_hash": "sha256:…",
+  "before_hash": "sha256:…",
+  "after_hash": "sha256:…",
+  "dry_run": false,
+  "ok": true
+}
+```
+
+Rotates at 5 MB by default.
 
 ## Security
 
-obsidian-native-mcp runs locally on your machine. The plugin exposes vaults over localhost only. The CLI communicates over local stdio. No data is sent to external services. Only vaults you explicitly select/configure are accessible.
-
-For security concerns, please open an issue or see [SECURITY.md](SECURITY.md).
+- Runs locally only — loopback (`127.0.0.1`) for HTTP, stdio for CLI.
+- HTTP transport requires a startup-generated bearer token in the SSE URL.
+- Origin header allowlist enforced; CORS is not `*`.
+- Request bodies capped at 5 MB; max-sessions and idle TTL applied.
+- Path-traversal protection on every vault-relative path.
+- Only vaults you explicitly select are accessible.
 
 ## License
 
