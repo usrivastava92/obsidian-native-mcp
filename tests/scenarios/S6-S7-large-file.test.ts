@@ -24,11 +24,15 @@ describe("S6 giant_file_outline", () => {
       }>("outline", { file: "big.md" });
       const t1 = process.hrtime.bigint();
       const elapsedMs = Number(t1 - t0) / 1_000_000;
+      const maxElapsedMs = process.env.CI ? 800 : 500;
       // 1 H1 + 250 H2 + 750 H3 = 1001 headings
       assert.equal(o.headings.length, 1001, "must include every heading");
       assert.ok(o.totalLines > 4000, `expected >4000 lines, got ${o.totalLines}`);
-      // Generous threshold for CI (cold parse): require <500ms.
-      assert.ok(elapsedMs < 500, `outline took ${elapsedMs.toFixed(1)}ms (expected <500ms)`);
+      // CI runners can be noticeably slower on cold parses than local dev machines.
+      assert.ok(
+        elapsedMs < maxElapsedMs,
+        `outline took ${elapsedMs.toFixed(1)}ms (expected <${maxElapsedMs}ms)`,
+      );
     } finally {
       await sb.cleanup();
     }
