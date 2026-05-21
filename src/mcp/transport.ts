@@ -1,8 +1,15 @@
-import type { JSONRPCRequest, JSONRPCResponse } from "./protocol";
+/**
+ * Transport abstraction. The server is transport-agnostic.
+ */
+
+import type { JsonRpcRequest, JsonRpcResponse } from "./protocol.js";
+
+export type RequestHandler = (
+  message: JsonRpcRequest,
+  context: { clientId: string },
+) => Promise<JsonRpcResponse | null>;
 
 export interface Transport {
-  sendMessage(message: JSONRPCResponse): void;
-  onRequest(handler: (request: JSONRPCRequest) => Promise<JSONRPCResponse | null>): void;
-  start(): void;
-  close(): void;
+  start(handler: RequestHandler): Promise<void>;
+  stop(): Promise<void>;
 }
