@@ -81,6 +81,15 @@ export const bulkApplyTool: ToolDefinition = {
       },
       atomic: { type: "boolean" },
       dry_run: { type: "boolean" },
+      _budget: {
+        type: "object",
+        description:
+          "Optional per-call budget override. maxBulkOps overrides the server default for this call only. 0 = unlimited.",
+        properties: {
+          maxBulkOps: { type: "integer", minimum: 0 },
+        },
+        additionalProperties: false,
+      },
     },
     required: ["ops"],
     additionalProperties: false,
@@ -90,6 +99,19 @@ export const bulkApplyTool: ToolDefinition = {
     const atomic = getBool(args, "atomic", { optional: true, default: true })!;
     const dry = getBool(args, "dry_run", { optional: true, default: false })!;
     if (opsRaw.length === 0) throw new ToolFailure("INVALID_ARGS", "ops must be non-empty");
+
+    // Per-call budget override: _budget.maxBulkOps takes precedence over server config.
+    const callBudget = (args._budget ?? {}) as Partial<{ maxBulkOps: number }>;
+    const maxBulkOps = callBudget.maxBulkOps ?? ctx.config.maxBulkOps;
+
+    if (maxBulkOps > 0 && opsRaw.length > maxBulkOps) {
+      throw new ToolFailure(
+        "BUDGET_EXCEEDED",
+        `bulk.apply received ${opsRaw.length} ops but the current limit is ${maxBulkOps}. ` +
+          `Split into smaller batches or raise the limit (MCP_MAX_BULK_OPS / plugin settings).`,
+        { submitted: opsRaw.length, limit: maxBulkOps },
+      );
+    }
     if (!atomic) {
       // Non-atomic: just run each op sequentially via its handler.
       const results: Array<{ index: number; ok: boolean; result?: unknown; error?: unknown }> = [];

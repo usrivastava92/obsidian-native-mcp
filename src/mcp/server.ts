@@ -25,6 +25,7 @@ import type { VaultRegistry } from "../vault/registry.js";
 import type { Permissions } from "../vault/permissions.js";
 import type { IFileCache } from "../cache/file-cache.js";
 import type { AuditLog } from "../audit/log.js";
+import { DEFAULT_CONFIG, type ServerConfig } from "../config.js";
 
 export interface ServerOptions {
   version: string;
@@ -34,6 +35,8 @@ export interface ServerOptions {
   audit: AuditLog;
   tools: ToolRegistry;
   promptsProvider?: PromptsProvider;
+  /** Resource budget config. Defaults to all-unlimited if omitted. */
+  config?: ServerConfig;
 }
 
 export interface PromptDescriptor {
@@ -60,6 +63,11 @@ export interface ServerHandle {
 }
 
 export function createServer(opts: ServerOptions): ServerHandle {
+  const serverConfig = opts.config ?? DEFAULT_CONFIG;
+
+  // Track in-flight requests so notifications/cancelled can abort them.
+  const inFlight = new Map<string | number, AbortController>();
+
   return {
     async handleRequest(req, clientId) {
       // Notifications: respond with null (transport will ack but not send).
@@ -79,6 +87,16 @@ export function createServer(opts: ServerOptions): ServerHandle {
                 });
           case "notifications/initialized":
             return null;
+
+          case "notifications/cancelled": {
+            // MCP cancellation: abort the matching in-flight request if present.
+            const p = (req.params ?? {}) as { requestId?: string | number };
+            if (p.requestId != null) {
+              inFlight.get(p.requestId)?.abort("cancelled");
+            }
+            return null;
+          }
+
           case "tools/list": {
             const tools = opts.tools
               .list((name) => opts.perms.isToolEnabled(name))
@@ -104,6 +122,18 @@ export function createServer(opts: ServerOptions): ServerHandle {
             } catch (e) {
               return failure(req.id ?? null, ErrorCode.InvalidParams, (e as Error).message);
             }
+
+            // Build AbortController: fired by notifications/cancelled or deadline.
+            const ac = new AbortController();
+            const reqId = req.id;
+            if (reqId != null) inFlight.set(reqId, ac);
+
+            // Optional wall-clock deadline — wired to same AbortController.
+            let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+            if (serverConfig.deadlineMs > 0) {
+              deadlineTimer = setTimeout(() => ac.abort("deadline"), serverConfig.deadlineMs);
+            }
+
             const ctx: ToolContext = {
               vault,
               perms: opts.perms,
@@ -111,17 +141,24 @@ export function createServer(opts: ServerOptions): ServerHandle {
               audit: opts.audit,
               registry: opts.registry,
               clientId,
+              config: serverConfig,
+              signal: ac.signal,
             };
-            const result = await opts.tools.invoke(name, args, ctx);
-            if (!result.ok) {
+            try {
+              const result = await opts.tools.invoke(name, args, ctx);
+              if (!result.ok) {
+                return success(req.id ?? null, {
+                  isError: true,
+                  content: [{ type: "text", text: JSON.stringify(result.error) }],
+                });
+              }
               return success(req.id ?? null, {
-                isError: true,
-                content: [{ type: "text", text: JSON.stringify(result.error) }],
+                content: [{ type: "text", text: JSON.stringify(result.result) }],
               });
+            } finally {
+              if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+              if (reqId != null) inFlight.delete(reqId);
             }
-            return success(req.id ?? null, {
-              content: [{ type: "text", text: JSON.stringify(result.result) }],
-            });
           }
           case "prompts/list": {
             if (!opts.promptsProvider) {

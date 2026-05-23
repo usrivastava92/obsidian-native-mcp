@@ -43,19 +43,80 @@ export const vaultInfoTool: ToolDefinition = {
   requiresWrite: false,
   schema: {
     type: "object",
-    properties: { vault: { type: "string" } },
+    properties: {
+      vault: { type: "string" },
+      _budget: {
+        type: "object",
+        description:
+          "Optional per-call budget overrides. Each field overrides the server default for this call only. 0 = unlimited.",
+        properties: {
+          maxFilesScanned: { type: "integer", minimum: 0 },
+          maxBytesRead: { type: "integer", minimum: 0 },
+          deadlineMs: { type: "integer", minimum: 0 },
+        },
+        additionalProperties: false,
+      },
+    },
     additionalProperties: false,
   },
-  async handler(_args, ctx) {
+  async handler(args, ctx) {
+    const callBudget = (args._budget ?? {}) as Partial<{
+      maxFilesScanned: number;
+      maxBytesRead: number;
+      deadlineMs: number;
+    }>;
+    const maxFilesScanned = callBudget.maxFilesScanned ?? ctx.config.maxFilesScanned;
+    const maxBytesRead = callBudget.maxBytesRead ?? ctx.config.maxBytesRead;
+    const deadlineMs = callBudget.deadlineMs ?? ctx.config.deadlineMs;
+    const deadline = deadlineMs > 0 ? Date.now() + deadlineMs : Infinity;
     let fileCount = 0;
     let sizeBytes = 0;
-    for await (const e of walk(ctx.vault.root, { extensions: ["md"] })) {
+    let truncated = false;
+    let abortReason: "deadline" | "budget" | "cancelled" | undefined;
+
+    for await (const e of walk(ctx.vault.root, { extensions: ["md"], signal: ctx.signal })) {
+      if (ctx.signal.aborted) {
+        truncated = true;
+        abortReason = (ctx.signal.reason as string) === "deadline" ? "deadline" : "cancelled";
+        break;
+      }
+      if (Date.now() > deadline) {
+        truncated = true;
+        abortReason = "deadline";
+        break;
+      }
       if (e.type === "file") {
         fileCount++;
         sizeBytes += e.size;
+        if (maxFilesScanned > 0 && fileCount >= maxFilesScanned) {
+          truncated = true;
+          abortReason = "budget";
+          break;
+        }
+        if (maxBytesRead > 0 && sizeBytes >= maxBytesRead) {
+          truncated = true;
+          abortReason = "budget";
+          break;
+        }
       }
     }
-    return { name: ctx.vault.name, fileCount, sizeBytes };
+
+    await ctx.audit.append({
+      tool: "vault.info",
+      vault: ctx.vault.name,
+      files_scanned: fileCount,
+      bytes_read: sizeBytes,
+      truncated: truncated || undefined,
+      abort_reason: abortReason,
+    });
+
+    const result: Record<string, unknown> = { name: ctx.vault.name, fileCount, sizeBytes };
+    if (truncated) {
+      result.truncated = true;
+      result.hint =
+        "Results are partial. Raise budget limits or use file.list with directory: to narrow scope.";
+    }
+    return result;
   },
 };
 
@@ -562,6 +623,17 @@ export const searchContentTool: ToolDefinition = {
       limit: { type: "integer", minimum: 1, maximum: 1000 },
       offset: { type: "integer", minimum: 0 },
       contextLines: { type: "integer", minimum: 0, maximum: 20 },
+      _budget: {
+        type: "object",
+        description:
+          "Optional per-call budget overrides. Each field overrides the server default for this call only. 0 = unlimited.",
+        properties: {
+          maxFilesScanned: { type: "integer", minimum: 0 },
+          maxBytesRead: { type: "integer", minimum: 0 },
+          deadlineMs: { type: "integer", minimum: 0 },
+        },
+        additionalProperties: false,
+      },
     },
     required: ["query"],
     additionalProperties: false,
@@ -573,10 +645,71 @@ export const searchContentTool: ToolDefinition = {
     const offset = getInt(args, "offset", { optional: true, min: 0 }) ?? 0;
     const contextLines = getInt(args, "contextLines", { optional: true, min: 0, max: 20 }) ?? 2;
     const rootAbs = directory ? resolvePath(ctx, directory) : ctx.vault.root;
+
+    const callBudget = (args._budget ?? {}) as Partial<{
+      maxFilesScanned: number;
+      maxBytesRead: number;
+      deadlineMs: number;
+    }>;
+    const maxFilesScanned = callBudget.maxFilesScanned ?? ctx.config.maxFilesScanned;
+    const maxBytesRead = callBudget.maxBytesRead ?? ctx.config.maxBytesRead;
+    const deadlineMs = callBudget.deadlineMs ?? ctx.config.deadlineMs;
+    const deadline = deadlineMs > 0 ? Date.now() + deadlineMs : Infinity;
+
     const hits: Array<Record<string, unknown>> = [];
     let count = 0;
-    for await (const e of walk(rootAbs, { extensions: ["md"] })) {
+    let filesScanned = 0;
+    let bytesRead = 0;
+    let truncated = false;
+    let abortReason: "deadline" | "budget" | "cancelled" | undefined;
+    const startMs = Date.now();
+
+    // Pre-flight: if already aborted before we even start, short-circuit.
+    if (ctx.signal.aborted) {
+      truncated = true;
+      abortReason = (ctx.signal.reason as string) === "deadline" ? "deadline" : "cancelled";
+    }
+
+    for await (const e of walk(rootAbs, { extensions: ["md"], signal: ctx.signal })) {
       if (e.type !== "file") continue;
+
+      // --- Cooperative checkpoint (once per file) -----------------------
+      if (ctx.signal.aborted) {
+        truncated = true;
+        abortReason = (ctx.signal.reason as string) === "deadline" ? "deadline" : "cancelled";
+        break;
+      }
+      if (Date.now() > deadline) {
+        truncated = true;
+        abortReason = "deadline";
+        break;
+      }
+      if (maxFilesScanned > 0 && filesScanned >= maxFilesScanned) {
+        truncated = true;
+        abortReason = "budget";
+        break;
+      }
+      if (maxBytesRead > 0 && bytesRead >= maxBytesRead) {
+        truncated = true;
+        abortReason = "budget";
+        break;
+      }
+
+      // --- Raw pre-filter: readFile + indexOf before mdast parse --------
+      // Only attempt a full parse for files that actually contain the query.
+      let rawText: string;
+      try {
+        const { readText } = await import("../fs/io.js");
+        rawText = await readText(e.absPath);
+      } catch {
+        continue;
+      }
+      filesScanned++;
+      bytesRead += rawText.length;
+
+      if (!rawText.includes(query)) continue; // skip mdast parse entirely
+
+      // --- Full parse only for files with a raw hit ---------------------
       let parsed;
       try {
         parsed = await ctx.cache.get(ctx.vault.root, e.absPath);
@@ -606,11 +739,32 @@ export const searchContentTool: ToolDefinition = {
         });
       }
     }
-    return {
+
+    const durationMs = Date.now() - startMs;
+    await ctx.audit.append({
+      tool: "search.content",
+      vault: ctx.vault.name,
+      duration_ms: durationMs,
+      files_scanned: filesScanned,
+      bytes_read: bytesRead,
+      truncated: truncated || undefined,
+      abort_reason: abortReason,
+    });
+
+    const out: Record<string, unknown> = {
       hits,
       total: count,
       nextOffset: offset + hits.length < count ? offset + hits.length : undefined,
     };
+    if (truncated) {
+      out.truncated = true;
+      out.scanned = filesScanned;
+      out.hint =
+        abortReason === "budget"
+          ? `Budget exceeded after scanning ${filesScanned} files. Narrow with directory: or raise limits.`
+          : `Search stopped early (${abortReason}). Use nextOffset to resume or narrow with directory:.`;
+    }
+    return out;
   },
 };
 

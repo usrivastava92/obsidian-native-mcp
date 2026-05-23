@@ -28,6 +28,7 @@ import { AuditLog } from "../audit/log.js";
 import { ToolRegistry } from "../handlers/registry.js";
 import { registerAll } from "../tools/index.js";
 import { FsPromptsProvider } from "../prompts/provider.js";
+import { configFromEnv } from "../config.js";
 
 interface CliFlags {
   readOnly: boolean;
@@ -96,6 +97,7 @@ async function main(): Promise<void> {
   const toolReg = new ToolRegistry();
   registerAll(toolReg);
   const promptsProvider = new FsPromptsProvider(registry);
+  const serverConfig = configFromEnv();
 
   // ------------------------------------------------------------------
   // Wire everything into the official MCP SDK Server
@@ -118,7 +120,7 @@ async function main(): Promise<void> {
   });
 
   // tools/call
-  server.setRequestHandler(CallToolRequestSchema, async (req) => {
+  server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
     const name = req.params.name;
     const args = (req.params.arguments ?? {}) as Record<string, unknown>;
     const vaultName = typeof args.vault === "string" ? args.vault : undefined;
@@ -131,17 +133,44 @@ async function main(): Promise<void> {
         content: [{ type: "text" as const, text: (e as Error).message }],
       };
     }
-    const ctx = { vault, perms, cache, audit, registry, clientId: "stdio" };
-    const result = await toolReg.invoke(name, args, ctx);
-    if (!result.ok) {
-      return {
-        isError: true,
-        content: [{ type: "text" as const, text: JSON.stringify(result.error) }],
-      };
+
+    // The SDK passes an AbortSignal via extra.signal when the client sends
+    // notifications/cancelled. Wire a deadline on top if configured.
+    const ac = new AbortController();
+    const sdkSignal: AbortSignal | undefined = (extra as { signal?: AbortSignal }).signal;
+    if (sdkSignal) {
+      if (sdkSignal.aborted) ac.abort(sdkSignal.reason);
+      else sdkSignal.addEventListener("abort", () => ac.abort(sdkSignal.reason), { once: true });
     }
-    return {
-      content: [{ type: "text" as const, text: JSON.stringify(result.result) }],
+    let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+    if (serverConfig.deadlineMs > 0) {
+      deadlineTimer = setTimeout(() => ac.abort("deadline"), serverConfig.deadlineMs);
+    }
+
+    const ctx = {
+      vault,
+      perms,
+      cache,
+      audit,
+      registry,
+      clientId: "stdio",
+      config: serverConfig,
+      signal: ac.signal,
     };
+    try {
+      const result = await toolReg.invoke(name, args, ctx);
+      if (!result.ok) {
+        return {
+          isError: true,
+          content: [{ type: "text" as const, text: JSON.stringify(result.error) }],
+        };
+      }
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result.result) }],
+      };
+    } finally {
+      if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+    }
   });
 
   // prompts/list

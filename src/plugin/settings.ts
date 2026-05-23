@@ -148,6 +148,73 @@ export class SettingsTab extends PluginSettingTab {
       );
     }
 
+    // --- Performance budgets --------------------------------------------
+    containerEl.createEl("h3", { text: "Performance budgets" });
+    const budgetDesc = containerEl.createEl("p", {
+      text: "Limits for long-running operations. 0 = unlimited (default). Raise freely for large vaults or batch workflows.",
+    });
+    budgetDesc.style.opacity = "0.8";
+
+    new Setting(containerEl)
+      .setName("Max files scanned")
+      .setDesc("Max markdown files scanned per search.content / vault.info call (0 = unlimited).")
+      .addText((t) =>
+        t.setValue(String(this.plugin.settings.budgets.maxFilesScanned)).onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (Number.isFinite(n) && n >= 0) {
+            this.plugin.settings.budgets.maxFilesScanned = n;
+            await this.plugin.saveSettings();
+            await this.plugin.restartServer();
+          }
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Max bytes read")
+      .setDesc(
+        "Max raw bytes of file content read per search.content / vault.info call (0 = unlimited).",
+      )
+      .addText((t) =>
+        t.setValue(String(this.plugin.settings.budgets.maxBytesRead)).onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (Number.isFinite(n) && n >= 0) {
+            this.plugin.settings.budgets.maxBytesRead = n;
+            await this.plugin.saveSettings();
+            await this.plugin.restartServer();
+          }
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Max bulk ops")
+      .setDesc("Max number of ops in a single bulk.apply call (0 = unlimited).")
+      .addText((t) =>
+        t.setValue(String(this.plugin.settings.budgets.maxBulkOps)).onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (Number.isFinite(n) && n >= 0) {
+            this.plugin.settings.budgets.maxBulkOps = n;
+            await this.plugin.saveSettings();
+            await this.plugin.restartServer();
+          }
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Deadline (ms)")
+      .setDesc(
+        "Wall-clock time limit in milliseconds for long-walk tools (0 = no deadline). Best-effort: checked once per file.",
+      )
+      .addText((t) =>
+        t.setValue(String(this.plugin.settings.budgets.deadlineMs)).onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (Number.isFinite(n) && n >= 0) {
+            this.plugin.settings.budgets.deadlineMs = n;
+            await this.plugin.saveSettings();
+            await this.plugin.restartServer();
+          }
+        }),
+      );
+
     // --- Audit log viewer -----------------------------------------------
     containerEl.createEl("h3", { text: "Recent audit log" });
     void this.renderAudit(containerEl);

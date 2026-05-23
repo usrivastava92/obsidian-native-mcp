@@ -13,6 +13,7 @@ import { createServer } from "../mcp/server.js";
 import { HttpTransport } from "../mcp/http.js";
 import { FsPromptsProvider } from "../prompts/provider.js";
 import { SettingsTab } from "./settings.js";
+import type { ServerConfig } from "../config.js";
 
 export interface PluginSettings {
   port: number;
@@ -21,6 +22,13 @@ export interface PluginSettings {
   toolToggles: Record<string, boolean>;
   allowedOrigins: string[] | null; // null → defaults
   enabledVaults: string[]; // vault names to expose
+  /** Resource budget limits. 0 in any field = unlimited (the default). */
+  budgets: {
+    maxFilesScanned: number;
+    maxBytesRead: number;
+    maxBulkOps: number;
+    deadlineMs: number;
+  };
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
@@ -30,6 +38,12 @@ const DEFAULT_SETTINGS: PluginSettings = {
   toolToggles: {},
   allowedOrigins: null,
   enabledVaults: [],
+  budgets: {
+    maxFilesScanned: 0,
+    maxBytesRead: 0,
+    maxBulkOps: 0,
+    deadlineMs: 0,
+  },
 };
 
 export default class ObsidianNativeMcpPlugin extends Plugin {
@@ -94,6 +108,12 @@ export default class ObsidianNativeMcpPlugin extends Plugin {
     const toolReg = new ToolRegistry();
     registerAll(toolReg);
     const prompts = new FsPromptsProvider(effectiveRegistry);
+    const serverConfig: ServerConfig = {
+      maxFilesScanned: this.settings.budgets.maxFilesScanned ?? 0,
+      maxBytesRead: this.settings.budgets.maxBytesRead ?? 0,
+      maxBulkOps: this.settings.budgets.maxBulkOps ?? 0,
+      deadlineMs: this.settings.budgets.deadlineMs ?? 0,
+    };
     const handle = createServer({
       version: this.manifest.version,
       registry: effectiveRegistry,
@@ -102,6 +122,7 @@ export default class ObsidianNativeMcpPlugin extends Plugin {
       audit,
       tools: toolReg,
       promptsProvider: prompts,
+      config: serverConfig,
     });
     this.transport = new HttpTransport({
       port: this.settings.port,

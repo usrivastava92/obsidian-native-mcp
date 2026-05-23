@@ -32,6 +32,12 @@ export interface AuditEntry {
   dry_run?: boolean;
   client_id?: string;
   error_code?: string;
+  /** Telemetry fields written by long-walk tools. */
+  duration_ms?: number;
+  files_scanned?: number;
+  bytes_read?: number;
+  truncated?: boolean;
+  abort_reason?: "deadline" | "budget" | "cancelled";
 }
 
 export class AuditLog {

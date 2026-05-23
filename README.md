@@ -64,6 +64,15 @@ npm run build
 
 Auto-discovers all your Obsidian vaults from Obsidian's own config. Pick which to expose in plugin settings. Plugin also surfaces a bearer token and the MCP URL.
 
+A **Performance budgets** section in plugin settings lets you cap long-running operations. All limits default to `0 = unlimited` — raise or lower them freely without restriction.
+
+| Setting           | Description                                                                    |
+| ----------------- | ------------------------------------------------------------------------------ |
+| Max files scanned | Max `.md` files scanned per `search.content` / `vault.info` call               |
+| Max bytes read    | Max raw bytes of file content read per call                                    |
+| Max bulk ops      | Max ops accepted by a single `bulk.apply` call                                 |
+| Deadline (ms)     | Wall-clock time limit for long-walk tools (best-effort; checked once per file) |
+
 ### CLI
 
 Either an env var or a config file.
@@ -94,6 +103,19 @@ obsidian-native-mcp --read-only            # all write tools disabled
 obsidian-native-mcp --vault notes=/path    # ad-hoc named vault
 obsidian-native-mcp --config ./my.json     # explicit config file
 ```
+
+#### Performance budget env vars
+
+All default to `0` (unlimited). Set any to a positive integer to cap that resource:
+
+```bash
+MCP_MAX_FILES_SCANNED=500    # files per search.content / vault.info call
+MCP_MAX_BYTES_READ=10000000  # raw bytes per call (~10 MB)
+MCP_MAX_BULK_OPS=50          # ops per bulk.apply call
+MCP_DEADLINE_MS=30000        # wall-clock ms ceiling for long-walk tools
+```
+
+These are _defaults_ — they are never enforced as hard system limits. Set them to whatever makes sense for your vault and workflow.
 
 ## Usage
 
@@ -135,7 +157,7 @@ All tools accept an optional `vault` parameter; with a single vault configured, 
 | Tool              | What it returns                                  | Notes                                            |
 | ----------------- | ------------------------------------------------ | ------------------------------------------------ |
 | `vault.list`      | All configured vaults                            | —                                                |
-| `vault.info`      | Stats per vault                                  | —                                                |
+| `vault.info`      | Stats per vault                                  | `_budget` supported                              |
 | `file.list`       | Paged file listing                               | `recursive`, `pattern` (glob), `limit`, `offset` |
 | `file.find`       | Find files by name                               | exact / substring / glob / regex                 |
 | `file.read`       | Full file content + `contentHash` + `totalLines` | Use freely — guidelines/AGENTS.md/etc.           |
@@ -147,7 +169,7 @@ All tools accept an optional `vault` parameter; with a single vault configured, 
 | `tags.list`       | Tags from frontmatter + body                     | Code-fence aware                                 |
 | `links.get`       | Outlinks, backlinks, or both                     | Typed: wiki/embed/header/block/markdown          |
 | `metadata.read`   | Frontmatter + headings + tags + links + hashes   | One-shot context dump                            |
-| `search.content`  | Paged full-text matches with per-line hashes     | DSL: `tag:`, `path:`, `\"phrase\"`, AND/OR/NOT   |
+| `search.content`  | Paged full-text matches with per-line hashes     | `_budget` supported; pre-filters before parse    |
 
 ### Write tools — surgical primaries
 
@@ -182,11 +204,39 @@ All tools accept an optional `vault` parameter; with a single vault configured, 
 
 ### Power & batch
 
-| Tool            | Notes                                                                     |
-| --------------- | ------------------------------------------------------------------------- |
-| `bulk.apply`    | Multi-file, multi-op batch. `atomic: true` → snapshot + rollback on error |
-| `regex.replace` | Two-step: server returns proposal token + diff → caller confirms          |
-| `file.diff`     | Diff between two `contentHash` versions (when cache has them)             |
+| Tool            | Notes                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------- |
+| `bulk.apply`    | Multi-file, multi-op batch. `atomic: true` → snapshot + rollback. `_budget` supported |
+| `regex.replace` | Two-step: server returns proposal token + diff → caller confirms                      |
+| `file.diff`     | Diff between two `contentHash` versions (when cache has them)                         |
+
+### Per-call budget overrides (`_budget`)
+
+`vault.info`, `search.content`, and `bulk.apply` all accept an optional `_budget` object that overrides the server-level config **for that single call only**. This lets an AI agent tighten or relax limits based on what it knows about the task:
+
+```json
+{
+  "tool": "search.content",
+  "arguments": {
+    "query": "important term",
+    "directory": "Projects/",
+    "_budget": {
+      "maxFilesScanned": 200,
+      "maxBytesRead": 5000000,
+      "deadlineMs": 10000
+    }
+  }
+}
+```
+
+| Field             | Applies to                     | Description                                         |
+| ----------------- | ------------------------------ | --------------------------------------------------- |
+| `maxFilesScanned` | `vault.info`, `search.content` | Max `.md` files to scan this call (0 = unlimited)   |
+| `maxBytesRead`    | `vault.info`, `search.content` | Max raw bytes to read this call (0 = unlimited)     |
+| `deadlineMs`      | `vault.info`, `search.content` | Wall-clock limit in ms for this call (0 = no limit) |
+| `maxBulkOps`      | `bulk.apply`                   | Max ops for this batch (0 = unlimited)              |
+
+When a budget is hit, the tool returns `truncated: true` with a `hint` and (for `search.content`) a `nextOffset` the agent can use to resume pagination. No error is thrown — the agent gets partial results and can decide what to do next.
 
 ### Prompts
 
@@ -232,6 +282,29 @@ Every mutating call appends one JSONL line to `<vault>/.obsidian/plugins/obsidia
   "ok": true
 }
 ```
+
+Long-walk tools (`search.content`, `vault.info`) also emit telemetry fields:
+
+```json
+{
+  "ts": "2026-05-21T13:00:01Z",
+  "tool": "search.content",
+  "vault": "notes",
+  "duration_ms": 412,
+  "files_scanned": 347,
+  "bytes_read": 2891024,
+  "truncated": true,
+  "abort_reason": "budget"
+}
+```
+
+| Field           | Description                                                                  |
+| --------------- | ---------------------------------------------------------------------------- |
+| `duration_ms`   | Wall-clock time for the operation in milliseconds                            |
+| `files_scanned` | Number of `.md` files read (after pre-filter; excludes cache hits on misses) |
+| `bytes_read`    | Raw bytes of file content read before mdast parsing                          |
+| `truncated`     | `true` if the operation was cut short by a budget or deadline                |
+| `abort_reason`  | `"budget"` · `"deadline"` · `"cancelled"` — why it stopped early             |
 
 Rotates at 5 MB by default.
 

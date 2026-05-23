@@ -28,6 +28,8 @@ export interface WalkOptions {
   extensions?: string[];
   /** Optional predicate to filter entries before yielding. */
   filter?: (e: WalkEntry) => boolean;
+  /** If provided, the walk stops yielding as soon as the signal is aborted. */
+  signal?: AbortSignal;
 }
 
 const DEFAULT_IGNORE = new Set([".git", ".obsidian", "node_modules", ".trash"]);
@@ -38,7 +40,7 @@ export async function* walk(rootAbs: string, options: WalkOptions = {}): AsyncGe
   const extSet = options.extensions
     ? new Set(options.extensions.map((e) => e.toLowerCase().replace(/^\./, "")))
     : null;
-  yield* walkInner(rootAbs, rootAbs, 0, ignore, maxDepth, extSet, options.filter);
+  yield* walkInner(rootAbs, rootAbs, 0, ignore, maxDepth, extSet, options.filter, options.signal);
 }
 
 async function* walkInner(
@@ -49,7 +51,9 @@ async function* walkInner(
   maxDepth: number,
   extSet: Set<string> | null,
   filter?: (e: WalkEntry) => boolean,
+  signal?: AbortSignal,
 ): AsyncGenerator<WalkEntry> {
+  if (signal?.aborted) return;
   let entries: import("node:fs").Dirent[];
   try {
     entries = await fs.readdir(curAbs, { withFileTypes: true });
@@ -57,6 +61,7 @@ async function* walkInner(
     return;
   }
   for (const ent of entries) {
+    if (signal?.aborted) return;
     if (ignore.has(ent.name)) continue;
     const childAbs = path.join(curAbs, ent.name);
     const relPath = toPosix(path.relative(rootAbs, childAbs));
@@ -73,7 +78,7 @@ async function* walkInner(
       };
       if (!filter || filter(e)) yield e;
       if (depth < maxDepth) {
-        yield* walkInner(rootAbs, childAbs, depth + 1, ignore, maxDepth, extSet, filter);
+        yield* walkInner(rootAbs, childAbs, depth + 1, ignore, maxDepth, extSet, filter, signal);
       }
     } else if (ent.isFile()) {
       if (extSet) {

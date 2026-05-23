@@ -124,6 +124,8 @@ export type ToolErrorCode =
   | "DESTINATION_EXISTS"
   | "IO_ERROR"
   | "PARSE_ERROR"
+  | "BUDGET_EXCEEDED"
+  | "DEADLINE_EXCEEDED"
   | "INTERNAL";
 
 export interface ToolError {

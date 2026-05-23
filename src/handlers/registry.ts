@@ -9,6 +9,7 @@
 
 import { ToolFailure } from "../utils/types.js";
 import type { ToolError } from "../utils/types.js";
+import type { ServerConfig } from "../config.js";
 
 export interface ToolContext {
   vault: import("../vault/registry.js").VaultEntry;
@@ -17,6 +18,10 @@ export interface ToolContext {
   audit: import("../audit/log.js").AuditLog;
   registry: import("../vault/registry.js").VaultRegistry;
   clientId: string;
+  /** Resource budget config for this server instance. */
+  config: ServerConfig;
+  /** AbortSignal fired when the client cancels the request (or deadline fires). */
+  signal: AbortSignal;
 }
 
 /** A JSON schema fragment for an MCP tool's input. */

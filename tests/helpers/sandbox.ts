@@ -14,6 +14,7 @@ import { LRUFileCache } from "../../src/cache/file-cache.js";
 import { AuditLog } from "../../src/audit/log.js";
 import { ToolRegistry, type ToolCallResult } from "../../src/handlers/registry.js";
 import { registerAll } from "../../src/tools/index.js";
+import { DEFAULT_CONFIG, type ServerConfig } from "../../src/config.js";
 
 export interface Sandbox {
   vaultRoot: string;
@@ -29,7 +30,12 @@ export interface Sandbox {
 
 export async function makeSandbox(
   fixturePath: string,
-  opts: { readOnly?: boolean; toolToggles?: Record<string, boolean> } = {},
+  opts: {
+    readOnly?: boolean;
+    toolToggles?: Record<string, boolean>;
+    config?: Partial<ServerConfig>;
+    signal?: AbortSignal;
+  } = {},
 ): Promise<Sandbox> {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), `onv-${randomBytes(4).toString("hex")}-`));
   await copyDir(fixturePath, tmp);
@@ -45,6 +51,9 @@ export async function makeSandbox(
   const reg = new ToolRegistry();
   registerAll(reg);
 
+  const sandboxConfig: ServerConfig = { ...DEFAULT_CONFIG, ...(opts.config ?? {}) };
+  const sandboxSignal: AbortSignal = opts.signal ?? new AbortController().signal;
+
   async function invoke(name: string, args: Record<string, unknown>): Promise<ToolCallResult> {
     const vault = vaultReg.resolve(typeof args.vault === "string" ? args.vault : undefined);
     return reg.invoke(name, args, {
@@ -54,6 +63,8 @@ export async function makeSandbox(
       audit,
       registry: vaultReg,
       clientId: "test",
+      config: sandboxConfig,
+      signal: sandboxSignal,
     });
   }
 
