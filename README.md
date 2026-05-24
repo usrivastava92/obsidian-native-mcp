@@ -39,7 +39,7 @@ The defining design goal is **minimize how many bytes the LLM has to push around
 ### Obsidian plugin (recommended)
 
 1. Open Obsidian → Settings → Community Plugins → Browse
-2. Search for "Obsidian Native MCP" and install
+2. Search for "Native MCP" and install
 3. Enable in Community Plugins
 4. Open plugin settings: select which vaults to expose, optionally toggle per-tool permissions, copy the MCP URL
 
@@ -267,7 +267,7 @@ The model refreshes from the new hash and retries. No silent clobbering.
 
 ## Audit log
 
-Every mutating call appends one JSONL line to `<vault>/.obsidian/plugins/obsidian-native-mcp/audit.log`:
+Every mutating call appends one JSONL line to `<vault>/.obsidian/plugins/native-mcp/audit.log`:
 
 ```json
 {

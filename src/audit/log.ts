@@ -1,7 +1,7 @@
 /**
  * JSONL audit log for mutating tool calls.
  *
- *   <vault>/.obsidian/plugins/obsidian-native-mcp/audit.log
+ *   <vault>/.obsidian/plugins/native-mcp/audit.log
  *
  * Each entry contains: ts, tool, vault, file, args_hash, before_hash,
  * after_hash, dry_run, client_id. We don't log raw args (could leak note
@@ -17,7 +17,7 @@ import { createHash } from "node:crypto";
 import { ensureDir } from "../fs/io.js";
 import type { Hash } from "../utils/types.js";
 
-const REL = ".obsidian/plugins/obsidian-native-mcp/audit.log";
+const REL = ".obsidian/plugins/native-mcp/audit.log";
 const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_ROTATIONS = 5;
 

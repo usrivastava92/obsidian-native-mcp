@@ -8,7 +8,7 @@ import * as path from "node:path";
 import { makeSandbox } from "../helpers/sandbox.js";
 
 async function readAudit(root: string): Promise<Array<Record<string, unknown>>> {
-  const p = path.join(root, ".obsidian/plugins/obsidian-native-mcp/audit.log");
+  const p = path.join(root, ".obsidian/plugins/native-mcp/audit.log");
   try {
     const text = await fs.readFile(p, "utf-8");
     return text

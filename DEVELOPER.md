@@ -102,7 +102,7 @@ Then pipe in Content-Length framed JSON-RPC requests on stdin. The `tests/helper
 ### Testing the Plugin
 
 1. `npm run build:plugin`
-2. Copy `dist/plugin/` to `<your-vault>/.obsidian/plugins/obsidian-native-mcp/`
+2. Copy `dist/plugin/` to `<your-vault>/.obsidian/plugins/native-mcp/`
 3. Reload Obsidian, enable in Community Plugins, open settings tab.
 
 ## Adding a new tool
@@ -203,7 +203,7 @@ Server → Client:  Heartbeat events keep the connection alive; idle sessions ar
 ## Logs and auditing
 
 - **Stderr logs** are key=value structured (`component=http session=abc msg="…"`), safe to ship to journald, OpsAgent, etc.
-- **Audit log** is JSONL at `<vault>/.obsidian/plugins/obsidian-native-mcp/audit.log`, one line per mutating call. Use it for forensic analysis and regression replays.
+- **Audit log** is JSONL at `<vault>/.obsidian/plugins/native-mcp/audit.log`, one line per mutating call. Use it for forensic analysis and regression replays.
 
 ## See also
 
