@@ -165,6 +165,12 @@ CI uses semantic-release on the `main` branch. The release pipeline bumps
 `main`, and publishes GitHub releases with bare version tags such as `1.4.2`
 so Obsidian can match the manifest version.
 
+Because `main` is protected, the release workflow requires a `RELEASE_TOKEN`
+repository secret. Use a fine-grained PAT or GitHub App token whose actor is
+allowed to bypass the `main` branch protection rule and has contents write
+access. The default `GITHUB_TOKEN` is not enough when direct pushes to `main`
+are blocked.
+
 ## Protocol reference
 
 The server speaks standard MCP over stdio (CLI) or HTTP/SSE (plugin).
