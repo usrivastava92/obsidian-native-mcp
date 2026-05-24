@@ -1,6 +1,6 @@
 <div align="center">
 
-# Obsidian Native MCP
+<img src="assets/banner.png" alt="Obsidian Native MCP banner" width="800" />
 
 **LLM-optimized MCP server for Obsidian vaults**
 Surgical edits, hash-based concurrency safety, no whole-file rewrites.
