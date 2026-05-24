@@ -154,14 +154,16 @@ Add more fixtures whenever you find a new edge class — the test suite rewards 
 ## Release process
 
 ```bash
-# Bump version in package.json + manifest.json (the prepare hook + sync-version.cjs keep them aligned)
 npm run check && npm run lint && npm test && npm run build && npm run build:plugin
 npm publish
-gh release create vX.Y.Z --title "vX.Y.Z" --generate-notes
+gh release create X.Y.Z --title "X.Y.Z" --generate-notes
 # Plugin: submit dist/plugin/ to https://github.com/obsidianmd/obsidian-releases
 ```
 
-CI uses semantic-release on the `main` branch.
+CI uses semantic-release on the `main` branch. The release pipeline bumps
+`package.json`, syncs `manifest.json`, commits the versioned files back to
+`main`, and publishes GitHub releases with bare version tags such as `1.4.2`
+so Obsidian can match the manifest version.
 
 ## Protocol reference
 
