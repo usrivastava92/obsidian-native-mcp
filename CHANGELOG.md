@@ -1,3 +1,9 @@
+## [1.5.4](https://github.com/usrivastava92/obsidian-native-mcp/compare/1.5.3...1.5.4) (2026-06-17)
+
+### Bug Fixes
+
+- move id-token:write and security-events:write to job level (Scorecard API requires it) ([2283f4d](https://github.com/usrivastava92/obsidian-native-mcp/commit/2283f4de48079381b35740184479a7a4cd46060d))
+
 ## [1.5.3](https://github.com/usrivastava92/obsidian-native-mcp/compare/1.5.2...1.5.3) (2026-06-17)
 
 ### Bug Fixes

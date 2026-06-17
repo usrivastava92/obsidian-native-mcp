@@ -1,7 +1,7 @@
 {
   "id": "native-mcp",
   "name": "Native MCP",
-  "version": "1.5.3",
+  "version": "1.5.4",
   "minAppVersion": "1.5.0",
   "description": "MCP server for AI assistants to read, search, create, and modify notes in your vaults",
   "author": "Utkarsh Srivastava",
