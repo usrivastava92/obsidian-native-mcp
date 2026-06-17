@@ -1,3 +1,9 @@
+## [1.5.2](https://github.com/usrivastava92/obsidian-native-mcp/compare/1.5.1...1.5.2) (2026-06-17)
+
+### Bug Fixes
+
+- restore proper spacing between badges ([4d286bf](https://github.com/usrivastava92/obsidian-native-mcp/commit/4d286bf5c8e31bca25836a0d0b24f08ec59f1038))
+
 ## [1.5.1](https://github.com/usrivastava92/obsidian-native-mcp/compare/1.5.0...1.5.1) (2026-06-17)
 
 ### Bug Fixes
