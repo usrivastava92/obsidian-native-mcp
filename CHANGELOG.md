@@ -1,3 +1,9 @@
+## [1.5.3](https://github.com/usrivastava92/obsidian-native-mcp/compare/1.5.2...1.5.3) (2026-06-17)
+
+### Bug Fixes
+
+- use scorecard-action@v2.4.3 instead of [@v2](https://github.com/v2) (floating tag not maintained) ([a6eb351](https://github.com/usrivastava92/obsidian-native-mcp/commit/a6eb35145ad049129d4631d43724b0b3f0118921))
+
 ## [1.5.2](https://github.com/usrivastava92/obsidian-native-mcp/compare/1.5.1...1.5.2) (2026-06-17)
 
 ### Bug Fixes

@@ -1,6 +1,6 @@
 {
   "name": "obsidian-native-mcp",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "Zero-dependency MCP server for Obsidian vaults. Direct filesystem access — no Obsidian process or REST API plugin needed.",
   "license": "MIT",
   "type": "module",
