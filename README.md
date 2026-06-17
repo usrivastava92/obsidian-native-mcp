@@ -8,7 +8,8 @@ Surgical edits, hash-based concurrency safety, no whole-file rewrites.
 [![Build](https://img.shields.io/github/actions/workflow/status/usrivastava92/obsidian-native-mcp/ci.yml?branch=main&label=CI&logo=github)](https://github.com/usrivastava92/obsidian-native-mcp/actions)
 [![Release](https://img.shields.io/github/v/release/usrivastava92/obsidian-native-mcp?logo=semanticrelease)](https://github.com/usrivastava92/obsidian-native-mcp/releases)
 [![npm](https://img.shields.io/npm/v/obsidian-native-mcp?logo=npm)](https://www.npmjs.com/package/obsidian-native-mcp)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/usrivastava92/obsidian-native-mcp/badge)](https://scorecard.dev/status/github.com/usrivastava92/obsidian-native-mcp)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/usrivastava92/obsidian-native-mcp/badge)](https://scorecard.dev/status/github.com/usrivastava92/obsidian-native-mcp)
 
 </div>
 
