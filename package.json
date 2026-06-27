@@ -55,7 +55,7 @@
     "@types/node": "^24.0.0",
     "@types/picomatch": "^4.0.0",
     "c8": "^11.0.0",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.0",
     "eslint": "^10.3.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.4",
