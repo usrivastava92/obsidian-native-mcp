@@ -165,11 +165,9 @@ CI uses semantic-release on the `main` branch. The release pipeline bumps
 `main`, and publishes GitHub releases with bare version tags such as `1.4.2`
 so Obsidian can match the manifest version.
 
-Because `main` is protected, the release workflow requires a `RELEASE_TOKEN`
-repository secret. Use a fine-grained PAT or GitHub App token whose actor is
-allowed to bypass the `main` branch protection rule and has contents write
-access. The default `GITHUB_TOKEN` is not enough when direct pushes to `main`
-are blocked.
+Because `main` is protected, the release workflow uses a GitHub App token from the `production` environment.
+Set `APP_CLIENT_ID` as a `production` environment variable and `APP_PRIVATE_KEY` as a `production` environment secret.
+The App needs contents, issues, and pull-requests write access for semantic-release.
 
 ## Protocol reference
 
