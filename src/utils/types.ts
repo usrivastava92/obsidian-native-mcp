@@ -43,13 +43,7 @@ export interface HeadingInfo {
 }
 
 export type BlockStructuralType =
-  | "paragraph"
-  | "list-item"
-  | "table-row"
-  | "callout"
-  | "code"
-  | "heading"
-  | "other";
+  "paragraph" | "list-item" | "table-row" | "callout" | "code" | "heading" | "other";
 
 export interface BlockInfo {
   id: string; // "^foo" — always normalised to leading-caret form
